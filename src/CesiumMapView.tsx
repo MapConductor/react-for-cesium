@@ -6,7 +6,7 @@ import type { CesiumConfig } from './CesiumMapConfig';
 import type { CesiumMapViewController } from './CesiumMapViewController';
 import type { CesiumMapViewProps } from './CesiumMapViewProps';
 
-export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions }: CesiumMapViewProps) {
+export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds }: CesiumMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [provider] = useState(() => new CesiumProvider());
   const [scope] = useState(() => new MapViewScope());
@@ -23,7 +23,7 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
     if (!containerRef.current) return;
     let cancelled = false;
     setIsReady(false);
-    const config: CesiumConfig = { container: containerRef.current, initCameraPosition: state.cameraPosition, mapDesignType: state.mapDesignType, options, markerTilingOptions };
+    const config: CesiumConfig = { container: containerRef.current, initCameraPosition: state.cameraPosition, mapDesignType: state.mapDesignType, options, markerTilingOptions, minZoom, maxZoom, restrictBounds };
     provider.initialize(config).then(raw => {
       if (cancelled) return;
       const ctrl = raw as CesiumMapViewController;
@@ -56,7 +56,7 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
       setIsReady(true);
     }).catch(reason => { if (!cancelled) callbacks.current.onError?.(reason instanceof Error ? reason : new Error(String(reason))); });
     return () => { cancelled = true; state.setCameraPositionChangeListener(null); state.setController(null); bridgeUnsubs.current.forEach(fn => fn()); bridgeUnsubs.current = []; provider.destroy(); };
-  }, [markerTilingOptions, options, provider, scope, state, state.mapDesignType.id]);
+  }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state, state.mapDesignType.id]);
 
   return <MapContext.Provider value={{ controller, isReady }}>
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', ...containerStyle }}>

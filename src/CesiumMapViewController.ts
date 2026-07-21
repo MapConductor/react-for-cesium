@@ -16,7 +16,6 @@ import {
   BaseMapViewController,
   createGeoPoint,
   createGeoRectBounds,
-  createMapCameraPosition,
   type CameraOptions,
   type CircleCapable,
   type CircleState,
@@ -54,9 +53,12 @@ import { CesiumPolygonController } from './polygon/CesiumPolygonController';
 import { CesiumGroundImageController } from './groundimage/CesiumGroundImageController';
 import { CesiumRasterLayerController } from './raster/CesiumRasterLayerController';
 import { parseCesiumEntityId, type CesiumOverlayKind } from './entityId';
+import { toCameraPosition, toMapCameraPosition } from './MapCameraPosition';
 
 const MARKER_DRAG_THRESHOLD_PX = 3;
-interface MarkerDragState { marker: MarkerState; pointerDown: Cartesian2; started: boolean; cameraInputsWereEnabled: boolean; }
+// grabOffset: pointer-to-anchor offset captured on grab so the marker doesn't
+// jump to the cursor when picked up by its icon body instead of its anchor.
+interface MarkerDragState { marker: MarkerState; pointerDown: Cartesian2; grabOffset: { x: number; y: number }; started: boolean; cameraInputsWereEnabled: boolean; }
 
 export class CesiumMapViewController extends BaseMapViewController implements MapViewControllerInterface, MarkerCapable, CircleCapable, PolylineCapable, PolygonCapable, GroundImageCapable, RasterLayerCapable {
   private readonly eventHelper = new EventHelper();
@@ -66,6 +68,7 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   private isCameraMoving = false;
   private activeMarkerDrag: MarkerDragState | null = null;
   private suppressNextClick = false;
+  private logicalTiltHint: number | null = null;
 
   constructor(
     readonly holder: CesiumMapViewHolder,
@@ -131,8 +134,14 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     const marker = picked?.kind === 'marker' ? this.markerController.markerManager.getEntity(picked.stateId)?.state : null;
     if (!marker?.draggable) return;
     const cameraController = this.holder.map.scene.screenSpaceCameraController;
-    this.activeMarkerDrag = { marker, pointerDown: Cartesian2.clone(screen), started: false, cameraInputsWereEnabled: cameraController.enableInputs };
+    const anchorScreen = this.holder.toScreenOffset(marker.position);
+    const grabOffset = anchorScreen ? { x: anchorScreen.x - screen.x, y: anchorScreen.y - screen.y } : { x: 0, y: 0 };
+    this.activeMarkerDrag = { marker, pointerDown: Cartesian2.clone(screen), grabOffset, started: false, cameraInputsWereEnabled: cameraController.enableInputs };
     cameraController.enableInputs = false;
+  }
+
+  private dragAnchorPosition(drag: MarkerDragState, screen: Cartesian2): GeoPoint | null {
+    return this.holder.fromScreenOffsetSync({ x: screen.x + drag.grabOffset.x, y: screen.y + drag.grabOffset.y });
   }
 
   private handleMarkerDragMove(screen: Cartesian2): void {
@@ -143,7 +152,7 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
       drag.started = true;
       this.markerController.dispatchDragStart(drag.marker);
     }
-    const position = this.holder.fromScreenOffsetSync({ x: screen.x, y: screen.y });
+    const position = this.dragAnchorPosition(drag, screen);
     if (!position) return;
     drag.marker.setPosition(position);
     this.markerController.updatePosition(drag.marker);
@@ -154,7 +163,7 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     const drag = this.activeMarkerDrag;
     if (!drag) return;
     if (drag.started) {
-      const position = this.holder.fromScreenOffsetSync({ x: screen.x, y: screen.y });
+      const position = this.dragAnchorPosition(drag, screen);
       if (position) { drag.marker.setPosition(position); this.markerController.updatePosition(drag.marker); }
       this.markerController.dispatchDragEnd(drag.marker);
       this.suppressNextClick = true;
@@ -172,12 +181,14 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   }
 
   async moveCamera(position: MapCameraPosition): Promise<boolean> {
+    this.logicalTiltHint = position.tilt;
     const { target, offset } = this.orbitCamera(position);
     this.holder.map.camera.lookAt(target, offset);
     this.holder.map.camera.lookAtTransform(Matrix4.IDENTITY);
     return true;
   }
   async animateCamera(position: MapCameraPosition, options?: CameraOptions): Promise<boolean> {
+    this.logicalTiltHint = position.tilt;
     const { target, offset } = this.orbitCamera(position);
     return new Promise(resolve => this.holder.map.camera.flyToBoundingSphere(
       new BoundingSphere(target, 0),
@@ -204,13 +215,14 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     const tilt = CesiumMath.toDegrees(camera.pitch) + 90;
     const target = Cartesian3.fromDegrees(position.longitude, position.latitude, position.altitude ?? 0);
     const range = Cartesian3.distance(camera.positionWC, target);
-    return createMapCameraPosition({
-      position,
+    return toMapCameraPosition({
+      target: position,
       zoom: this.holder.zoomConverter.distanceToZoomLevel({ distance: range, latitude: position.latitude }),
       bearing: normalizeDegrees(CesiumMath.toDegrees(camera.heading)),
       tilt,
-      visibleRegion: this.getVisibleRegion(),
-    });
+      logicalTiltHint: this.logicalTiltHint,
+      converter: this.holder.zoomConverter,
+    }).copy({ visibleRegion: this.getVisibleRegion() });
   }
   getBounds(): GeoRectBounds | null { return this.getVisibleRegion()?.bounds ?? null; }
 
@@ -229,11 +241,12 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   }
 
   private orbitCamera(position: MapCameraPosition): { target: Cartesian3; offset: HeadingPitchRange } {
-    const target = Cartesian3.fromDegrees(position.position.longitude, position.position.latitude, position.position.altitude ?? 0);
-    const range = this.holder.zoomConverter.zoomLevelToDistance({ zoomLevel: position.zoom, latitude: position.position.latitude });
+    const camera = toCameraPosition(position, this.holder.zoomConverter);
+    const target = Cartesian3.fromDegrees(camera.target.longitude, camera.target.latitude, camera.target.altitude ?? 0);
+    const range = this.holder.zoomConverter.zoomLevelToDistance({ zoomLevel: camera.zoom, latitude: camera.target.latitude });
     const offset = new HeadingPitchRange(
-      CesiumMath.toRadians(position.bearing),
-      CesiumMath.toRadians(Math.max(0, Math.min(89, position.tilt)) - 90),
+      CesiumMath.toRadians(camera.bearing),
+      CesiumMath.toRadians(Math.max(0, Math.min(89, camera.tilt)) - 90),
       range,
     );
     return { target, offset };

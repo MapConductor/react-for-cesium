@@ -1,15 +1,23 @@
 {
   "name": "@mapconductor/react-for-cesium",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cesium provider for MapConductor React SDK",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.mjs", "require": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
     "./style.css": "./dist/style.css"
   },
-  "files": ["dist"],
+  "files": [
+    "dist",
+    "README.ja.md",
+    "README.es-419.md"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts && npm run postbuild",
     "postbuild": "node -e \"require('fs').copyFileSync(require.resolve('cesium/Build/Cesium/Widgets/widgets.css'), './dist/style.css')\"",
@@ -17,7 +25,12 @@
     "clean": "rm -rf dist",
     "test": "echo 'No tests yet'"
   },
-  "keywords": ["maps", "cesium", "react", "typescript"],
+  "keywords": [
+    "maps",
+    "cesium",
+    "react",
+    "typescript"
+  ],
   "author": "MapConductor",
   "license": "Apache2",
   "peerDependencies": {
@@ -29,5 +42,9 @@
     "@mapconductor/js-sdk-react": "0.1.0",
     "cesium": "^1.131.0"
   },
-  "devDependencies": { "react": "^19.2.7", "tsup": "^8.5.1", "typescript": "^5.9.3" }
+  "devDependencies": {
+    "react": "^19.2.7",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
 }

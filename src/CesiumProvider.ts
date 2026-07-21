@@ -1,5 +1,6 @@
 import {
   Cartesian3,
+  Cartographic,
   HeadingPitchRange,
   ImageryLayer,
   Math as CesiumMath,
@@ -53,6 +54,42 @@ export class CesiumProvider extends MapProvider {
       ZoomAltitudeConverter.DEFAULT_ZOOM0_ALTITUDE,
       () => ({ width: container.clientWidth, height: container.clientHeight }),
     );
+
+    // No native rectangular pan restriction exists for Cesium's globe camera,
+    // so minZoom/maxZoom go through screenSpaceCameraController's zoom-distance
+    // clamp (the native equivalent for zoom), and restrictBounds is enforced
+    // by clamping the camera's ground position every frame (the common Cesium
+    // pattern, same approach used for ArcGIS SceneView).
+    const referenceLatitude = config.initCameraPosition?.position.latitude ?? 0;
+    const cameraController = viewer.scene.screenSpaceCameraController;
+    if (config.maxZoom !== undefined) {
+      cameraController.minimumZoomDistance = zoomConverter.zoomLevelToDistance({
+        zoomLevel: config.maxZoom,
+        latitude: referenceLatitude,
+      });
+    }
+    if (config.minZoom !== undefined) {
+      cameraController.maximumZoomDistance = zoomConverter.zoomLevelToDistance({
+        zoomLevel: config.minZoom,
+        latitude: referenceLatitude,
+      });
+    }
+
+    const restrictBounds = config.restrictBounds;
+    if (restrictBounds?.southWest && restrictBounds.northEast) {
+      const minLon = CesiumMath.toRadians(restrictBounds.southWest.longitude);
+      const maxLon = CesiumMath.toRadians(restrictBounds.northEast.longitude);
+      const minLat = CesiumMath.toRadians(restrictBounds.southWest.latitude);
+      const maxLat = CesiumMath.toRadians(restrictBounds.northEast.latitude);
+      viewer.scene.postRender.addEventListener(() => {
+        if (viewer.isDestroyed()) return;
+        const cartographic = Cartographic.fromCartesian(viewer.camera.positionWC);
+        const clampedLon = Math.min(Math.max(cartographic.longitude, minLon), maxLon);
+        const clampedLat = Math.min(Math.max(cartographic.latitude, minLat), maxLat);
+        if (clampedLon === cartographic.longitude && clampedLat === cartographic.latitude) return;
+        viewer.camera.position = Cartesian3.fromRadians(clampedLon, clampedLat, cartographic.height);
+      });
+    }
     const holder = new CesiumMapViewHolder(container, viewer, zoomConverter);
     const controller = new CesiumMapViewController(
       holder,
