@@ -14,7 +14,6 @@ export class CesiumMapViewHolder extends MapViewHolderBase<HTMLElement, Viewer> 
     const point = SceneTransforms.worldToWindowCoordinates(this.map.scene, Cartesian3.fromDegrees(position.longitude, position.latitude));
     return point ? { x: point.x, y: point.y } : null;
   }
-  async fromScreenOffset(offset: Offset): Promise<GeoPoint | null> { return this.fromScreenOffsetSync(offset); }
   fromScreenOffsetSync(offset: Offset): GeoPoint | null {
     if (this.isDestroyed()) return null;
     const cartesian = this.map.camera.pickEllipsoid(new Cartesian2(offset.x, offset.y), this.map.scene.globe.ellipsoid);

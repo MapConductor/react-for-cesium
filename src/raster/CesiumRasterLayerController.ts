@@ -13,5 +13,4 @@ export class CesiumRasterLayerController extends RasterLayerController<ImageryLa
     await super.update(state);
     if (!state.visible) this.rasterLayerManager.removeEntity(state.id);
   }
-  has(state: RasterLayerState): boolean { return this.rasterLayerManager.hasEntity(state.id); }
 }
