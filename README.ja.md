@@ -1,4 +1,4 @@
-[English](https://github.com/MapConductor/react-for-cesium/README.md) | 日本語 | [Español (Latinoamérica)](https://github.com/MapConductor/react-for-cesium/README.es-419.md)
+[English](https://github.com/MapConductor/react-for-cesium/blob/main/README.md) | 日本語 | [Español (Latinoamérica)](https://github.com/MapConductor/react-for-cesium/blob/main/README.es-419.md)
 
 # @mapconductor/react-for-cesium
 
