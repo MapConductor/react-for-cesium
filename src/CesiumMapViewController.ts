@@ -81,6 +81,11 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   ) {
     super();
     holder.setController(this);
+    // Tiled markers render into a raster overlay driven by the raster controller.
+    this.markerController.onRasterLayerUpdate = async state => {
+      if (state) await this.rasterLayerController.composition([state]);
+      else await this.rasterLayerController.clear();
+    };
     this.input = new ScreenSpaceEventHandler(holder.map.scene.canvas);
     this.setupEvents();
     void this.notifyControllersCameraChanged(this.getCameraPosition());
@@ -111,7 +116,12 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     if (!clicked) return;
     if (longClick) { this.notifyMapLongClick(clicked); return; }
     const picked = parsePickedEntity(this.holder.map.scene.pick(screen));
-    if (!picked || !this.dispatchOverlayClick(picked.kind, picked.stateId, clicked)) this.notifyMapClick(clicked);
+    if (picked && this.dispatchOverlayClick(picked.kind, picked.stateId, clicked)) return;
+    // Tiled markers are drawn into a raster overlay (no entity to pick), so
+    // hit-test them here — mirrors the Leaflet/Azure Maps controllers.
+    const tiled = this.markerController.findTiled(clicked, this.getCameraPosition().zoom ?? 0);
+    if (tiled?.state.clickable) { this.markerController.dispatchClick(tiled.state); return; }
+    this.notifyMapClick(clicked);
   }
 
   private dispatchOverlayClick(kind: CesiumOverlayKind, id: string, clicked: GeoPoint): boolean {

@@ -3,7 +3,13 @@ import { AbstractZoomAltitudeConverter } from '@mapconductor/js-sdk-core';
 export interface ZoomAltitudeViewportSize { width: number; height: number; }
 
 export class ZoomAltitudeConverter extends AbstractZoomAltitudeConverter {
-  static readonly REFERENCE_VIEWPORT_HEIGHT_PX = 540;
+  // Calibrated so Cesium's on-screen ground scale matches Google Maps at the
+  // same zoom. The reported zoom round-trips through this constant, so it can't
+  // reveal a scale error; the real check is the visible longitude span projected
+  // from the live camera (fromScreenOffsetSync at the viewport edges). Measured
+  // that way, the original 540 left Cesium a constant ~0.35 zoom levels too far
+  // out across every location/latitude; 690 closes it to ~0.
+  static readonly REFERENCE_VIEWPORT_HEIGHT_PX = 690;
 
   constructor(
     zoom0Altitude = AbstractZoomAltitudeConverter.DEFAULT_ZOOM0_ALTITUDE,

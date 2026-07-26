@@ -93,7 +93,7 @@ export class CesiumProvider extends MapProvider {
     const holder = new CesiumMapViewHolder(container, viewer, zoomConverter);
     const controller = new CesiumMapViewController(
       holder,
-      new CesiumMarkerController(new CesiumMarkerRenderer(holder)),
+      new CesiumMarkerController(new CesiumMarkerRenderer(holder), config.markerTilingOptions),
       new CesiumCircleController(new CesiumCircleOverlayRenderer(holder)),
       new CesiumPolylineController(new CesiumPolylineOverlayRenderer(holder)),
       new CesiumPolygonController(new CesiumPolygonOverlayRenderer(holder)),

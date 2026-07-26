@@ -10,6 +10,17 @@ const NEGATIVE_TILT_TARGET_DISTANCE_SCALE = 1.83;
 const NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT = -0.9;
 const MAX_NEGATIVE_TILT = 60;
 
+/**
+ * Quantize a programmatic zoom target to the nearest integer, mirroring how
+ * Google Maps 2D (the project-wide camera reference) snaps zoom. Cesium renders
+ * the true fractional zoom, so without this it sits up to half a level apart
+ * from Google at fractional targets (Oahu 9.5 -> 10, Kiribati 4.5 -> 5).
+ * Reported zoom (distanceToZoomLevel in getCameraPosition) stays fractional.
+ */
+function snapZoomToGoogle(zoom: number): number {
+  return Math.round(zoom);
+}
+
 export interface CesiumCameraPosition {
   target: GeoPoint;
   zoom: number;
@@ -29,7 +40,7 @@ export function toCameraPosition(
   if (position.tilt >= 0) {
     return {
       target: position.position,
-      zoom: position.zoom,
+      zoom: snapZoomToGoogle(position.zoom),
       bearing: position.bearing,
       tilt: position.tilt,
     };
