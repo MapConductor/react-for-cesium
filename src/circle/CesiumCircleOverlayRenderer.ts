@@ -1,5 +1,7 @@
 import { ArcType, Cartesian3, ConstantPositionProperty, EllipseGraphics, Entity, PolylineGraphics } from 'cesium';
 import {
+  circleToRing,
+  closeRing,
   type CircleAddParams,
   type CircleChangeParams,
   type CircleEntity,
@@ -11,10 +13,6 @@ import { toCesiumColor } from '../color';
 import { toCartesian3 } from '../helpers';
 import { cesiumEntityId } from '../entityId';
 import { CIRCLE_Z_BASE } from '../zOrder';
-
-const CIRCLE_OUTLINE_SEGMENTS = 128;
-const WGS84_SEMI_MAJOR_M = 6_378_137;
-const WGS84_E2 = 0.006_694_379_990_14;
 
 export class CesiumCircleOverlayRenderer implements CircleOverlayRenderer<Entity> {
   constructor(readonly holder: CesiumMapViewHolder) {}
@@ -49,32 +47,10 @@ export class CesiumCircleOverlayRenderer implements CircleOverlayRenderer<Entity
   }
 }
 
-// Geodesic circle ring via the spherical destination formula, using the
-// ellipsoid's Gaussian radius at the center latitude so the ring tracks
-// EllipseGraphics' ellipsoidal edge closely (error ~0.05% of the radius).
+// Geodesic circle ring from the shared core geometry (128 segments, spherical
+// destination formula). Tracks EllipseGraphics' ellipsoidal edge closely.
 function circleOutlinePositions(state: CircleState): Cartesian3[] {
-  const latRad = (state.center.latitude * Math.PI) / 180;
-  const lonRad = (state.center.longitude * Math.PI) / 180;
-  const sinLatSq = Math.sin(latRad) ** 2;
-  const normalRadius = WGS84_SEMI_MAJOR_M / Math.sqrt(1 - WGS84_E2 * sinLatSq);
-  const meridionalRadius = (WGS84_SEMI_MAJOR_M * (1 - WGS84_E2)) / (1 - WGS84_E2 * sinLatSq) ** 1.5;
-  const gaussianRadius = Math.sqrt(normalRadius * meridionalRadius);
-
-  const angular = state.radiusMeters / gaussianRadius;
-  const sinLat = Math.sin(latRad);
-  const cosLat = Math.cos(latRad);
-  const sinAng = Math.sin(angular);
-  const cosAng = Math.cos(angular);
-
-  const positions: Cartesian3[] = [];
-  for (let i = 0; i <= CIRCLE_OUTLINE_SEGMENTS; i++) {
-    const bearing = (i / CIRCLE_OUTLINE_SEGMENTS) * 2 * Math.PI;
-    const pointLat = Math.asin(sinLat * cosAng + cosLat * sinAng * Math.cos(bearing));
-    const pointLon = lonRad + Math.atan2(
-      Math.sin(bearing) * sinAng * cosLat,
-      cosAng - sinLat * Math.sin(pointLat),
-    );
-    positions.push(Cartesian3.fromRadians(pointLon, pointLat, 0));
-  }
-  return positions;
+  return closeRing(circleToRing(state.center, state.radiusMeters, true)).map(
+    (point) => Cartesian3.fromDegrees(point.longitude, point.latitude, 0),
+  );
 }
