@@ -36,11 +36,14 @@ export interface CesiumCameraPosition {
 export function toCameraPosition(
   position: MapCameraPosition,
   converter: ZoomAltitudeConverter,
+  { snapZoom = true }: { snapZoom?: boolean } = {},
 ): CesiumCameraPosition {
   if (position.tilt >= 0) {
     return {
       target: position.position,
-      zoom: snapZoomToGoogle(position.zoom),
+      // fitBounds passes snapZoom:false to keep its computed fractional zoom;
+      // rounding it would break the fit and make `padding` have no visible effect.
+      zoom: snapZoom ? snapZoomToGoogle(position.zoom) : position.zoom,
       bearing: position.bearing,
       tilt: position.tilt,
     };

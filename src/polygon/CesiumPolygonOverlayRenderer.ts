@@ -1,5 +1,5 @@
 import { ArcType, Cartesian3, Entity, PolygonGraphics, PolygonHierarchy, PolylineGraphics } from 'cesium';
-import { createInterpolatePoints, createLinearInterpolatePoints, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
+import { WGS84Geodesic, Planar, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCesiumColor } from '../color';
 import { pointsToDegrees } from '../helpers';
@@ -25,8 +25,8 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
     // semantics) otherwise — so the two modes produce their intended shapes.
     const densify = (points: GeoPoint[]): GeoPoint[] =>
       state.geodesic
-        ? createInterpolatePoints(points, GEODESIC_MAX_SEGMENT_LENGTH_METERS)
-        : createLinearInterpolatePoints(points);
+        ? WGS84Geodesic.createInterpolatePoints(points, GEODESIC_MAX_SEGMENT_LENGTH_METERS)
+        : Planar.createInterpolatePoints(points);
 
     // No height: the polygon renders as ground geometry, which is what makes
     // Cesium honour zIndex ordering against other overlays (polylines sit in

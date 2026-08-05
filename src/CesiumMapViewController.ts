@@ -7,13 +7,15 @@ import {
   HeadingPitchRange,
   Matrix4,
   Math as CesiumMath,
-  Rectangle,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   type Viewer,
 } from 'cesium';
 import {
   BaseMapViewController,
+  MapUISettingsDiagnostics,
+  type MapUISettings,
+  computeFitBoundsCameraPosition,
   createGeoPoint,
   createGeoRectBounds,
   type CameraOptions,
@@ -92,6 +94,33 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   }
 
   getMap(): Viewer { return this.holder.map; }
+
+  /**
+   * Cesium's camera controller names its inputs after what they do to the
+   * globe, not after the map gesture: in 3D a left drag *rotates* the globe,
+   * which is what MapConductor calls scrolling.
+   *
+   * Heading and pitch share one input (`enableTilt` — a middle or ctrl drag
+   * changes both), so rotate and tilt can only be switched off together. The
+   * gesture left on is reported when the two flags disagree.
+   */
+  applyUISettings(settings: MapUISettings): void {
+    const camera = this.holder.map.scene.screenSpaceCameraController;
+    camera.enableRotate = settings.scrollGesture;
+    camera.enableTranslate = settings.scrollGesture;
+    camera.enableZoom = settings.zoomGesture;
+    camera.enableTilt = settings.rotateGesture || settings.tiltGesture;
+    camera.enableLook = settings.rotateGesture || settings.tiltGesture;
+
+    if (settings.rotateGesture !== settings.tiltGesture) {
+      MapUISettingsDiagnostics.warnIfRequested(
+        false,
+        settings.rotateGesture ? 'tilt' : 'rotate',
+        'Cesium',
+        'one drag changes heading and pitch together, so rotation and tilt can only be disabled together',
+      );
+    }
+  }
 
   private setupEvents(): void {
     const camera = this.holder.map.camera;
@@ -191,30 +220,55 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   }
 
   async moveCamera(position: MapCameraPosition): Promise<boolean> {
-    this.logicalTiltHint = position.tilt;
-    const { target, offset } = this.orbitCamera(position);
-    this.holder.map.camera.lookAt(target, offset);
-    this.holder.map.camera.lookAtTransform(Matrix4.IDENTITY);
-    return true;
+    return this.applyCamera(position, { animated: false });
   }
   async animateCamera(position: MapCameraPosition, options?: CameraOptions): Promise<boolean> {
+    return this.applyCamera(position, { animated: true, duration: options?.duration });
+  }
+  /**
+   * Shared camera commit. `snapZoom` defaults to true so explicit camera targets
+   * quantize their zoom to match the Google Maps 2D reference; fitBounds passes
+   * false to keep its fractional fit zoom (otherwise `padding` has no effect).
+   */
+  private async applyCamera(
+    position: MapCameraPosition,
+    { animated, duration, snapZoom = true }: { animated: boolean; duration?: number; snapZoom?: boolean },
+  ): Promise<boolean> {
     this.logicalTiltHint = position.tilt;
-    const { target, offset } = this.orbitCamera(position);
+    const { target, offset } = this.orbitCamera(position, snapZoom);
+    if (!animated) {
+      this.holder.map.camera.lookAt(target, offset);
+      this.holder.map.camera.lookAtTransform(Matrix4.IDENTITY);
+      return true;
+    }
     return new Promise(resolve => this.holder.map.camera.flyToBoundingSphere(
       new BoundingSphere(target, 0),
       {
         offset,
-        duration: (options?.duration ?? 500) / 1000,
+        duration: (duration ?? 500) / 1000,
         complete: () => { this.holder.map.camera.lookAtTransform(Matrix4.IDENTITY); resolve(true); },
         cancel: () => resolve(false),
       },
     ));
   }
-  async fitBounds(bounds: GeoRectBounds, options?: CameraOptions): Promise<boolean> {
-    if (!bounds.southWest || !bounds.northEast) return false;
-    const destination = Rectangle.fromDegrees(bounds.southWest.longitude, bounds.southWest.latitude, bounds.northEast.longitude, bounds.northEast.latitude);
-    if (!options?.duration) { this.holder.map.camera.setView({ destination }); return true; }
-    return new Promise(resolve => this.holder.map.camera.flyTo({ destination, duration: options.duration! / 1000, complete: () => resolve(true), cancel: () => resolve(false) }));
+  // Unified fit: the core computes center + zoom from the bounds and padded
+  // viewport; moveCamera keeps the current heading/pitch (Cesium's own Rectangle
+  // fit would reset to top-down). See computeFitBoundsCameraPosition.
+  fitBounds(bounds: GeoRectBounds, options?: CameraOptions): Promise<boolean> {
+    if (!bounds.southWest || !bounds.northEast) return Promise.resolve(false);
+    const canvas = this.holder.map.canvas;
+    const current = this.getCameraPosition();
+    const fit = computeFitBoundsCameraPosition({
+      bounds,
+      viewportWidthPx: canvas.clientWidth,
+      viewportHeightPx: canvas.clientHeight,
+      padding: typeof options?.padding === 'number' ? options.padding : 0,
+      bearing: current.bearing,
+    });
+    if (!fit) return Promise.resolve(false);
+    const target = current.copy({ position: fit.center, zoom: fit.zoom });
+    // snapZoom:false — keep the fractional fit zoom so `padding` is honored.
+    return this.applyCamera(target, { animated: !!options?.duration, duration: options?.duration, snapZoom: false });
   }
 
   getCameraPosition(): MapCameraPosition {
@@ -250,8 +304,11 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     return { bounds, nearLeft, nearRight, farLeft, farRight };
   }
 
-  private orbitCamera(position: MapCameraPosition): { target: Cartesian3; offset: HeadingPitchRange } {
-    const camera = toCameraPosition(position, this.holder.zoomConverter);
+  private orbitCamera(
+    position: MapCameraPosition,
+    snapZoom = true,
+  ): { target: Cartesian3; offset: HeadingPitchRange } {
+    const camera = toCameraPosition(position, this.holder.zoomConverter, { snapZoom });
     const target = Cartesian3.fromDegrees(camera.target.longitude, camera.target.latitude, camera.target.altitude ?? 0);
     const range = this.holder.zoomConverter.zoomLevelToDistance({ zoomLevel: camera.zoom, latitude: camera.target.latitude });
     const offset = new HeadingPitchRange(

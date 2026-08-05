@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { InfoBubbleOverlay, MapAttributionOverlay, MapContext, MapViewScope, MapViewScopeProvider, MarkerAnimationLayer, type InfoBubbleEntry } from '@mapconductor/js-sdk-react';
+import { InfoBubbleOverlay, MapAttributionOverlay, MapContext, MapViewScope, MapViewScopeProvider, MarkerAnimationLayer, useMapUISettings, type InfoBubbleEntry } from '@mapconductor/js-sdk-react';
 import { type GeoPoint, type MapCameraPosition, type MarkerAnimationOverlayEntry, type OverlayCollector } from '@mapconductor/js-sdk-core';
 import { CesiumProvider } from './CesiumProvider';
 import type { CesiumConfig } from './CesiumMapConfig';
@@ -57,6 +57,8 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
     }).catch(reason => { if (!cancelled) callbacks.current.onError?.(reason instanceof Error ? reason : new Error(String(reason))); });
     return () => { cancelled = true; state.setCameraPositionChangeListener(null); state.setController(null); bridgeUnsubs.current.forEach(fn => fn()); bridgeUnsubs.current = []; provider.destroy(); };
   }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state, state.mapDesignType.id]);
+
+  useMapUISettings(state, controller);
 
   return <MapContext.Provider value={{ controller, isReady }}>
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', ...containerStyle }}>

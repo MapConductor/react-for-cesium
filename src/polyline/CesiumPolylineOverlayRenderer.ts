@@ -1,5 +1,5 @@
 import { Entity, PolylineGraphics } from 'cesium';
-import { createInterpolatePoints, createLinearInterpolatePoints, type PolylineAddParams, type PolylineChangeParams, type PolylineEntity, type PolylineOverlayRenderer, type PolylineState } from '@mapconductor/js-sdk-core';
+import { WGS84Geodesic, Planar, type PolylineAddParams, type PolylineChangeParams, type PolylineEntity, type PolylineOverlayRenderer, type PolylineState } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCesiumColor } from '../color';
 import { pointsToDegrees } from '../helpers';
@@ -26,8 +26,8 @@ export class CesiumPolylineOverlayRenderer implements PolylineOverlayRenderer<En
     // linear lon/lat interpolation (Google Maps' straight-line semantics)
     // otherwise. At this density the arc type between neighbours is moot.
     const points = state.geodesic
-      ? createInterpolatePoints(state.points)
-      : createLinearInterpolatePoints(state.points);
+      ? WGS84Geodesic.createInterpolatePoints(state.points)
+      : Planar.createInterpolatePoints(state.points);
     entity.polyline = new PolylineGraphics({
       positions: Cartesian3.fromDegreesArray(pointsToDegrees(points)),
       width: state.strokeWidth,

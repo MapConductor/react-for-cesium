@@ -4,9 +4,16 @@ import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { cesiumEntityId } from '../entityId';
 
 export class CesiumGroundImageOverlayRenderer implements GroundImageOverlayRenderer<Entity> {
-  constructor(readonly holder: CesiumMapViewHolder) {}
-  async onAdd(data: GroundImageAddParams[]): Promise<(Entity | null)[]> { return this.holder.isDestroyed() ? data.map(() => null) : data.map(({ state }) => this.create(state)); }
-  async onChange(data: GroundImageChangeParams<Entity>[]): Promise<(Entity | null)[]> { return this.holder.isDestroyed() ? data.map(() => null) : data.map(({ current, prev }) => { this.apply(prev.groundImage, current.state); return prev.groundImage; }); }
+  constructor(readonly holder: CesiumMapViewHolder) { }
+  async onAdd(data: GroundImageAddParams[]): Promise<(Entity | null)[]> {
+    return this.holder.isDestroyed() ? data.map(() => null) : data.map(({ state }) => this.create(state));
+  }
+  async onChange(data: GroundImageChangeParams<Entity>[]): Promise<(Entity | null)[]> {
+    return this.holder.isDestroyed() ? data.map(() => null) : data.map(({ current, prev }) => {
+      this.apply(prev.groundImage, current.state);
+      return prev.groundImage;
+    });
+  }
   async onRemove(data: GroundImageEntity<Entity>[]): Promise<void> { if (!this.holder.isDestroyed()) data.forEach(item => this.holder.map.entities.remove(item.groundImage)); }
   async onPostProcess(): Promise<void> { if (!this.holder.isDestroyed()) this.holder.map.scene.requestRender(); }
   private create(state: GroundImageState): Entity | null {
@@ -18,7 +25,11 @@ export class CesiumGroundImageOverlayRenderer implements GroundImageOverlayRende
     if (!sw || !ne) { entity.rectangle = undefined; return; }
     entity.rectangle = new RectangleGraphics({
       coordinates: Rectangle.fromDegrees(sw.longitude, sw.latitude, ne.longitude, ne.latitude),
-      material: new ImageMaterialProperty({ image: state.imageUrl, color: Color.WHITE.withAlpha(state.opacity) }),
+      // transparent: true makes Cesium honor the image's own alpha channel.
+      // It defaults to false, which treats the PNG as fully opaque and ignores
+      // transparent pixels; `color`'s alpha only scales the overall opacity, not
+      // the per-pixel alpha, so both are needed.
+      material: new ImageMaterialProperty({ image: state.imageUrl, color: Color.WHITE.withAlpha(state.opacity), transparent: true }),
       height: 0,
     });
   }

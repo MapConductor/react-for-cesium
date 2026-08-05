@@ -6,6 +6,7 @@ import {
   type GeoPoint,
   type MapCameraPosition,
   type MapViewControllerInterface,
+  type GeoRectBounds,
   type MapViewHolder,
   type MapViewStateInterface,
 } from '@mapconductor/js-sdk-core';
@@ -38,6 +39,7 @@ export class CesiumMapViewState extends MapViewState<CesiumMapDesignType> implem
     this._cameraPosition = next; this._cameraPositionChangeListener?.(next);
   }
   override getMapViewHolder(): MapViewHolder<unknown, unknown> | null { return this._controller?.holder ?? null; }
+  override fitBounds(bounds: GeoRectBounds, padding: number = 0): void { void this._controller?.fitBounds(bounds, { padding }); }
   setController(controller: MapViewControllerInterface | null): void { this._controller = controller; }
   updateCameraPosition(camera: MapCameraPosition): void { this._cameraPosition = camera; this._cameraPositionChangeListener?.(camera); }
   setCameraPositionChangeListener(listener: ((camera: MapCameraPosition) => void) | null): void { this._cameraPositionChangeListener = listener; }
