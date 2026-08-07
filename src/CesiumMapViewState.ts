@@ -33,13 +33,13 @@ export class CesiumMapViewState extends MapViewState<CesiumMapDesignType> implem
   override moveCameraTo(value: GeoPoint | MapCameraPosition, durationMillis?: number): void {
     const next = 'zoom' in value ? this.resolveCameraPosition(value) : this._cameraPosition.copy({ position: value });
     if (this._controller) {
-      if (durationMillis) void this._controller.animateCamera(next, { duration: durationMillis });
+      if (durationMillis) void this._controller.animateCamera(next, durationMillis);
       else void this._controller.moveCamera(next);
     }
     this._cameraPosition = next; this._cameraPositionChangeListener?.(next);
   }
   override getMapViewHolder(): MapViewHolder<unknown, unknown> | null { return this._controller?.holder ?? null; }
-  override fitBounds(bounds: GeoRectBounds, padding: number = 0): void { void this._controller?.fitBounds(bounds, { padding }); }
+  override fitBounds(bounds: GeoRectBounds, padding: number = 0): void { void this._controller?.fitBounds(bounds, padding); }
   setController(controller: MapViewControllerInterface | null): void { this._controller = controller; }
   updateCameraPosition(camera: MapCameraPosition): void { this._cameraPosition = camera; this._cameraPositionChangeListener?.(camera); }
   setCameraPositionChangeListener(listener: ((camera: MapCameraPosition) => void) | null): void { this._cameraPositionChangeListener = listener; }

@@ -84,7 +84,7 @@ export class CesiumMarkerController extends AbstractMarkerController<Entity> {
     const generation = ++this.tileGeneration;
     const tiledStates = this.markerManager
       .allEntities()
-      .filter(entity => entity.marker === null)
+      .filter(entity => entity.tiling)
       .map(entity => entity.state);
 
     if (tiledStates.length === 0) {

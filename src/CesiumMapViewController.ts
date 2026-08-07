@@ -18,7 +18,6 @@ import {
   computeFitBoundsCameraPosition,
   createGeoPoint,
   createGeoRectBounds,
-  type CameraOptions,
   type CircleCapable,
   type CircleState,
   type GeoPoint,
@@ -222,8 +221,8 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   async moveCamera(position: MapCameraPosition): Promise<boolean> {
     return this.applyCamera(position, { animated: false });
   }
-  async animateCamera(position: MapCameraPosition, options?: CameraOptions): Promise<boolean> {
-    return this.applyCamera(position, { animated: true, duration: options?.duration });
+  async animateCamera(position: MapCameraPosition, durationMillis: number): Promise<boolean> {
+    return this.applyCamera(position, { animated: true, duration: durationMillis });
   }
   /**
    * Shared camera commit. `snapZoom` defaults to true so explicit camera targets
@@ -254,7 +253,7 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   // Unified fit: the core computes center + zoom from the bounds and padded
   // viewport; moveCamera keeps the current heading/pitch (Cesium's own Rectangle
   // fit would reset to top-down). See computeFitBoundsCameraPosition.
-  fitBounds(bounds: GeoRectBounds, options?: CameraOptions): Promise<boolean> {
+  fitBounds(bounds: GeoRectBounds, padding: number): Promise<boolean> {
     if (!bounds.southWest || !bounds.northEast) return Promise.resolve(false);
     const canvas = this.holder.map.canvas;
     const current = this.getCameraPosition();
@@ -262,13 +261,13 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
       bounds,
       viewportWidthPx: canvas.clientWidth,
       viewportHeightPx: canvas.clientHeight,
-      padding: typeof options?.padding === 'number' ? options.padding : 0,
+      padding,
       bearing: current.bearing,
     });
     if (!fit) return Promise.resolve(false);
     const target = current.copy({ position: fit.center, zoom: fit.zoom });
     // snapZoom:false — keep the fractional fit zoom so `padding` is honored.
-    return this.applyCamera(target, { animated: !!options?.duration, duration: options?.duration, snapZoom: false });
+    return this.applyCamera(target, { animated: false, snapZoom: false });
   }
 
   getCameraPosition(): MapCameraPosition {
@@ -288,7 +287,6 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
       converter: this.holder.zoomConverter,
     }).copy({ visibleRegion: this.getVisibleRegion() });
   }
-  getBounds(): GeoRectBounds | null { return this.getVisibleRegion()?.bounds ?? null; }
 
   private getVisibleRegion(): VisibleRegion | null {
     const canvas = this.holder.map.canvas;

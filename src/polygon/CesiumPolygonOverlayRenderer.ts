@@ -1,5 +1,5 @@
 import { ArcType, Cartesian3, Entity, PolygonGraphics, PolygonHierarchy, PolylineGraphics } from 'cesium';
-import { WGS84Geodesic, Planar, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
+import { WGS84Geodesic, Planar, resolveHoles, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCesiumColor } from '../color';
 import { pointsToDegrees } from '../helpers';
@@ -17,7 +17,11 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
   async onRemove(data: PolygonEntity<Entity>[]): Promise<void> { if (!this.holder.isDestroyed()) data.forEach(item => this.holder.map.entities.remove(item.polygon)); }
   async onPostProcess(): Promise<void> { if (!this.holder.isDestroyed()) this.holder.map.scene.requestRender(); }
   private create(state: PolygonState): Entity { const entity = this.holder.map.entities.add(new Entity({ id: cesiumEntityId('polygon', state.id) })); this.apply(entity, state); return entity; }
-  private apply(entity: Entity, state: PolygonState): void {
+  private apply(entity: Entity, inputState: PolygonState): void {
+    // Overlapping holes are merged here, at geometry build time, the same place
+    // the Android renderers call resolveHoles(). The component-level union in
+    // Polygon.tsx does not re-run when state.holes is swapped at runtime.
+    const state = resolveHoles(inputState);
     // Cesium always connects polygon vertices with geodesic arcs, so a
     // geodesic:false polygon would take the exact same shape as a geodesic
     // one. Densify each ring ourselves — great-circle interpolation when
