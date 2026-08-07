@@ -47,6 +47,6 @@ export class CesiumMapViewState extends MapViewState<CesiumMapDesignType> implem
     return target.zoom === 0 && target.bearing === 0 && target.tilt === 0 ? this._cameraPosition.copy({ position: target.position }) : target;
   }
 }
-export function useCesiumMapViewState(params: CesiumMapViewStateParams = {}): CesiumMapViewState {
+export function useCesiumMapViewState(params: CesiumMapViewStateParams = {}): CesiumMapViewStateInterface {
   const [state] = useState(() => new CesiumMapViewState(params)); return state;
 }

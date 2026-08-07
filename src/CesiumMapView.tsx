@@ -8,13 +8,14 @@ import {
   MapViewScopeProvider,
   MarkerAnimationLayer,
   type InfoBubbleEntry,
+  createMapContextValue,
 } from '@mapconductor/js-sdk-react';
 import {
   useCameraRestriction,
   useMapUISettings,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
-import { type GeoPoint, type MapCameraPosition, type MarkerAnimationOverlayEntry, type OverlayCollector } from '@mapconductor/js-sdk-core';
+import { type GeoPoint, type MapCameraPosition, type MarkerAnimationOverlayEntry, type OverlayCollector, mapViewStateInternal } from '@mapconductor/js-sdk-core';
 import { CesiumProvider } from './CesiumProvider';
 import type { CesiumConfig } from './CesiumMapConfig';
 import type { CesiumMapViewController } from './CesiumMapViewController';
@@ -45,11 +46,11 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
     provider.initialize(config).then(raw => {
       if (cancelled) return;
       const ctrl = raw as CesiumMapViewController;
-      state.setController(ctrl); setController(ctrl);
-      state.setCameraPositionChangeListener(() => setCameraTick(t => t + 1));
-      ctrl.setCameraMoveStartListener((camera: MapCameraPosition) => { state.updateCameraPosition(camera); callbacks.current.onCameraMoveStart?.(camera); });
-      ctrl.setCameraMoveListener((camera: MapCameraPosition) => { state.updateCameraPosition(camera); callbacks.current.onCameraMove?.(camera); setCameraTick(t => t + 1); });
-      ctrl.setCameraMoveEndListener((camera: MapCameraPosition) => { state.updateCameraPosition(camera); callbacks.current.onCameraMoveEnd?.(camera); setCameraTick(t => t + 1); });
+      mapViewStateInternal(state).setController(ctrl); setController(ctrl);
+      mapViewStateInternal(state).setCameraPositionChangeListener(() => setCameraTick(t => t + 1));
+      ctrl.setCameraMoveStartListener((camera: MapCameraPosition) => { mapViewStateInternal(state).updateCameraPosition(camera); callbacks.current.onCameraMoveStart?.(camera); });
+      ctrl.setCameraMoveListener((camera: MapCameraPosition) => { mapViewStateInternal(state).updateCameraPosition(camera); callbacks.current.onCameraMove?.(camera); setCameraTick(t => t + 1); });
+      ctrl.setCameraMoveEndListener((camera: MapCameraPosition) => { mapViewStateInternal(state).updateCameraPosition(camera); callbacks.current.onCameraMoveEnd?.(camera); setCameraTick(t => t + 1); });
       ctrl.setMapClickListener((point: GeoPoint) => callbacks.current.onMapClick?.(point));
       ctrl.setMapLongClickListener((point: GeoPoint) => callbacks.current.onMapLongClick?.(point));
       ctrl.setMapInitializedListener(() => {
@@ -57,7 +58,7 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
           // これで `mapViewState.cameraPosition` が最初から権威ある値になり、
           // 拡張モジュールが `cameraPosition.visibleRegion.bounds` を初回から読める。
           const initial = ctrl.getCameraPosition();
-          if (initial) state.updateCameraPosition(initial);
+          if (initial) mapViewStateInternal(state).updateCameraPosition(initial);
           setIsLoaded(true);
           callbacks.current.onMapLoaded?.(state);
         });
@@ -82,7 +83,7 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
       setIsReady(true);
     }).catch(reason => { if (!cancelled) callbacks.current.onError?.(reason instanceof Error ? reason : new Error(String(reason))); });
 
-    return () => { cancelled = true; state.setCameraPositionChangeListener(null); state.setController(null); bridgeUnsubs.current.forEach(fn => fn()); bridgeUnsubs.current = []; provider.destroy(); };
+    return () => { cancelled = true; mapViewStateInternal(state).setCameraPositionChangeListener(null); mapViewStateInternal(state).setController(null); bridgeUnsubs.current.forEach(fn => fn()); bridgeUnsubs.current = []; provider.destroy(); };
   }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state, state.mapDesignType.id]);
 
   useMapUISettings(state, controller);
@@ -94,7 +95,7 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
   //  MarkerRenderingSupportKey を put するのと同じ位置づけ）。
   useMarkerRenderingSupport(state, scope, controller);
 
-  return <MapContext.Provider value={{ controller, isReady, isLoaded, state }}>
+  return <MapContext.Provider value={createMapContextValue({ controller, isReady, isLoaded, state })}>
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', ...containerStyle }}>
       <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
       {controller && <MapAttributionOverlay scope={scope} camera={state.cameraPosition} designAttributionRules={state.mapDesignType.attributionRules} />}
