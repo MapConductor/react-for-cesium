@@ -1,4 +1,4 @@
-import { MapDesignTypeInterface, AttributionRule, MapViewStateInterface, MapViewState, MapCameraPosition, GeoPoint, MapViewHolder, GeoRectBounds, MapViewControllerInterface, MapViewBaseProps, MarkerTilingOptions, AbstractZoomAltitudeConverter, MapViewHolderBase, GeoPointInterface, Offset, MarkerOverlayRenderer, MarkerEntity, AbstractMarkerOverlayRenderer, AddParams, ChangeParams, MarkerState, AbstractMarkerController, RasterLayerState, CircleOverlayRenderer, CircleAddParams, CircleChangeParams, CircleEntity, CircleController, PolylineOverlayRenderer, PolylineAddParams, PolylineChangeParams, PolylineEntity, PolylineController, PolygonOverlayRenderer, PolygonAddParams, PolygonChangeParams, PolygonEntity, PolygonController, GroundImageOverlayRenderer, GroundImageAddParams, GroundImageChangeParams, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MarkerCapable, CircleCapable, PolylineCapable, PolygonCapable, GroundImageCapable, RasterLayerCapable, MapUISettings, OnMapInitializedHandler, OnMarkerEventHandler, MarkerAnimationOverlayHost, CircleState, OnCircleEventHandler, PolylineState, OnPolylineEventHandler, PolygonState, OnPolygonEventHandler, GroundImageState, OnGroundImageEventHandler, MapConfig, MapProvider } from '@mapconductor/js-sdk-core';
+import { MapDesignTypeInterface, AttributionRule, MapViewStateInterface, MapViewState, MapCameraPosition, MapViewControllerInterface, MapViewBaseProps, MarkerTilingOptions, GeoRectBounds, AbstractZoomAltitudeConverter, MapViewHolderBase, GeoPointInterface, Offset, GeoPoint, MarkerOverlayRenderer, MarkerEntity, AbstractMarkerOverlayRenderer, AddParams, ChangeParams, MarkerState, AbstractMarkerController, RasterLayerState, CircleOverlayRenderer, CircleAddParams, CircleChangeParams, CircleEntity, CircleController, PolylineOverlayRenderer, PolylineAddParams, PolylineChangeParams, PolylineEntity, PolylineController, PolygonOverlayRenderer, PolygonAddParams, PolygonChangeParams, PolygonEntity, PolygonController, GroundImageOverlayRenderer, GroundImageAddParams, GroundImageChangeParams, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MarkerCapable, CircleCapable, PolylineCapable, PolygonCapable, GroundImageCapable, RasterLayerCapable, MapUISettings, OnMapInitializedHandler, OnMarkerEventHandler, MarkerAnimationOverlayHost, CircleState, OnCircleEventHandler, PolylineState, OnPolylineEventHandler, PolygonState, OnPolygonEventHandler, GroundImageState, OnGroundImageEventHandler, MapConfig, MapProvider } from '@mapconductor/js-sdk-core';
 import { ImageryProvider, Viewer, Entity, ImageryLayer } from 'cesium';
 import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
@@ -29,23 +29,12 @@ interface CesiumMapViewStateParams {
     cameraPosition?: MapCameraPosition;
 }
 declare class CesiumMapViewState extends MapViewState<CesiumMapDesignType> implements CesiumMapViewStateInterface {
-    readonly id: string;
-    private _cameraPosition;
     private _mapDesignType;
-    private _controller;
-    private _cameraPositionChangeListener;
     constructor({ id, mapDesignType, cameraPosition }?: CesiumMapViewStateParams);
-    get cameraPosition(): MapCameraPosition;
     get mapDesignType(): CesiumMapDesignType;
     set mapDesignType(value: CesiumMapDesignType);
-    moveCameraTo(position: GeoPoint, durationMillis?: number): void;
-    moveCameraTo(cameraPosition: MapCameraPosition, durationMillis?: number): void;
-    getMapViewHolder(): MapViewHolder<unknown, unknown> | null;
-    fitBounds(bounds: GeoRectBounds, padding?: number): void;
+    /** このプロバイダは接続時にカメラを動かさない（ビュー側が別経路で初期位置を当てる）。 */
     setController(controller: MapViewControllerInterface | null): void;
-    updateCameraPosition(camera: MapCameraPosition): void;
-    setCameraPositionChangeListener(listener: ((camera: MapCameraPosition) => void) | null): void;
-    private resolveCameraPosition;
 }
 declare function useCesiumMapViewState(params?: CesiumMapViewStateParams): CesiumMapViewStateInterface;
 
