@@ -19,31 +19,22 @@ import {
   createGeoPoint,
   createGeoRectBounds,
   type CircleCapable,
-  type CircleState,
   type GeoPoint,
   type GeoRectBounds,
   type GroundImageCapable,
   type GroundImageEvent,
-  type GroundImageState,
   type MapCameraPosition,
   type MapViewControllerInterface,
   type MarkerAnimationOverlayHost,
   type MarkerCapable,
   type MarkerState,
-  type OnCircleEventHandler,
-  type OnGroundImageEventHandler,
   type OnMapInitializedHandler,
   type OnMarkerEventHandler,
-  type OnPolygonEventHandler,
-  type OnPolylineEventHandler,
   type PolygonCapable,
   type PolygonEvent,
-  type PolygonState,
   type PolylineCapable,
   type PolylineEvent,
-  type PolylineState,
   type RasterLayerCapable,
-  type RasterLayerState,
   type VisibleRegion,
 } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from './CesiumMapViewHolder';
@@ -81,6 +72,22 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     private readonly rasterLayerController: CesiumRasterLayerController,
   ) {
     super();
+
+    // Capable ファサードの既定実装がここから kind で引く。
+
+    // **登録を忘れると composition が黙って捨てられる。**
+
+    this.registerOverlayController(this.markerController);
+
+    this.registerOverlayController(this.circleController);
+
+    this.registerOverlayController(this.polylineController);
+
+    this.registerOverlayController(this.polygonController);
+
+    this.registerOverlayController(this.groundImageController);
+
+    this.registerOverlayController(this.rasterLayerController);
     holder.setController(this);
     // Tiled markers render into a raster overlay driven by the raster controller.
     this.markerController.onRasterLayerUpdate = async state => {
@@ -325,9 +332,6 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     ]);
   }
 
-  async compositionMarkers(data: MarkerState[]): Promise<void> { await this.markerController.composition(data); }
-  async updateMarker(state: MarkerState): Promise<void> { await this.markerController.update(state); }
-  hasMarker(state: MarkerState): boolean { return this.markerController.has(state); }
   setOnMarkerClickListener(value: OnMarkerEventHandler | null): void { this.markerController.setOnClickListener(value); }
   setOnMarkerDragStart(value: OnMarkerEventHandler | null): void { this.markerController.setOnDragStart(value); }
   setOnMarkerDrag(value: OnMarkerEventHandler | null): void { this.markerController.setOnDrag(value); }
@@ -335,25 +339,6 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   setOnMarkerAnimateStart(value: OnMarkerEventHandler | null): void { this.markerController.setOnAnimateStart(value); }
   setOnMarkerAnimateEnd(value: OnMarkerEventHandler | null): void { this.markerController.setOnAnimateEnd(value); }
   setMarkerAnimationOverlayHost(host: MarkerAnimationOverlayHost | null): void { this.markerController.setMarkerAnimationOverlayHost(host); }
-  async compositionCircles(data: CircleState[]): Promise<void> { await this.circleController.composition(data); }
-  async updateCircle(state: CircleState): Promise<void> { await this.circleController.update(state); }
-  hasCircle(state: CircleState): boolean { return this.circleController.has(state); }
-  setOnCircleClickListener(value: OnCircleEventHandler | null): void { this.circleController.setOnClickListener(value); }
-  async compositionPolylines(data: PolylineState[]): Promise<void> { await this.polylineController.composition(data); }
-  async updatePolyline(state: PolylineState): Promise<void> { await this.polylineController.update(state); }
-  hasPolyline(state: PolylineState): boolean { return this.polylineController.has(state); }
-  setOnPolylineClickListener(value: OnPolylineEventHandler | null): void { this.polylineController.setOnClickListener(value); }
-  async compositionPolygons(data: PolygonState[]): Promise<void> { await this.polygonController.composition(data); }
-  async updatePolygon(state: PolygonState): Promise<void> { await this.polygonController.update(state); }
-  hasPolygon(state: PolygonState): boolean { return this.polygonController.has(state); }
-  setOnPolygonClickListener(value: OnPolygonEventHandler | null): void { this.polygonController.setOnClickListener(value); }
-  async compositionGroundImages(data: GroundImageState[]): Promise<void> { await this.groundImageController.composition(data); }
-  async updateGroundImage(state: GroundImageState): Promise<void> { await this.groundImageController.update(state); }
-  hasGroundImage(state: GroundImageState): boolean { return this.groundImageController.has(state); }
-  setOnGroundImageClickListener(value: OnGroundImageEventHandler | null): void { this.groundImageController.setOnClickListener(value); }
-  async compositionRasterLayers(data: RasterLayerState[]): Promise<void> { await this.rasterLayerController.composition(data); }
-  async updateRasterLayer(state: RasterLayerState): Promise<void> { await this.rasterLayerController.update(state); }
-  hasRasterLayer(state: RasterLayerState): boolean { return this.rasterLayerController.has(state); }
 
   async clearOverlays(): Promise<void> {
     await Promise.all([this.markerController.clear(), this.circleController.clear(), this.polylineController.clear(), this.polygonController.clear(), this.groundImageController.clear(), this.rasterLayerController.clear()]);
