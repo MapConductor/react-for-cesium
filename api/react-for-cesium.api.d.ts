@@ -307,6 +307,13 @@ declare class CesiumMapViewController extends BaseMapViewController implements M
     setMarkerAnimationOverlayHost(host: MarkerAnimationOverlayHost | null): void;
     clearOverlays(): Promise<void>;
     destroy(): void;
+    /**
+     * マーカーのヒットテストと配送。カスケードの先頭。
+     *
+     * タイル方式のマーカーはラスターオーバーレイに描かれ、`scene.pick` に載らないので
+     * ここでヒットテストする。通常のマーカーは pick 経路で先に処理される。
+     */
+    protected dispatchMarkerTap(clicked: GeoPoint): boolean;
 }
 
 interface CesiumConfig extends MapConfig {

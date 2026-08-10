@@ -150,13 +150,13 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     const clicked = this.holder.fromScreenOffsetSync({ x: screen.x, y: screen.y });
     if (!clicked) return;
     if (longClick) { this.notifyMapLongClick(clicked); return; }
+    // Cesium はシーンの pick で「どの実体か」を正確に取れるので、まずそれを使う
+    // （幾何ヒットテストより正確。android の TomTom と同じ nativeFirst の形）。
     const picked = parsePickedEntity(this.holder.map.scene.pick(screen));
     if (picked && this.dispatchOverlayClick(picked.kind, picked.stateId, clicked)) return;
-    // Tiled markers are drawn into a raster overlay (no entity to pick), so
-    // hit-test them here — mirrors the Leaflet/Azure Maps controllers.
-    const tiled = this.markerController.findTiled(clicked, this.getCameraPosition().zoom ?? 0);
-    if (tiled?.state.clickable) { this.markerController.dispatchClick(tiled.state); return; }
-    this.notifyMapClick(clicked);
+    // pick に載らないもの（タイル方式のマーカーはラスターオーバーレイに描かれる）と
+    // 地図クリックはコアのカスケードへ。順序と先勝ちは dispatchTap が持つ。
+    this.dispatchTap(clicked);
   }
 
   private dispatchOverlayClick(kind: CesiumOverlayKind, id: string, clicked: GeoPoint): boolean {
@@ -351,6 +351,19 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     this.markerController.destroy();
     this.holder.setController(null);
     this.input.destroy(); this.eventHelper.removeAll();
+  }
+
+  /**
+   * マーカーのヒットテストと配送。カスケードの先頭。
+   *
+   * タイル方式のマーカーはラスターオーバーレイに描かれ、`scene.pick` に載らないので
+   * ここでヒットテストする。通常のマーカーは pick 経路で先に処理される。
+   */
+  protected override dispatchMarkerTap(clicked: GeoPoint): boolean {
+    const tiled = this.markerController.findTiled(clicked, this.getCameraPosition().zoom ?? 0);
+    if (!tiled?.state.clickable) return false;
+    this.markerController.dispatchClick(tiled.state);
+    return true;
   }
 }
 
