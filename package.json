@@ -1,6 +1,6 @@
 {
   "name": "@mapconductor/react-for-cesium",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Cesium provider for MapConductor React SDK",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
