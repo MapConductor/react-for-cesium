@@ -245,6 +245,7 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     if (!animated) {
       this.holder.map.camera.lookAt(target, offset);
       this.holder.map.camera.lookAtTransform(Matrix4.IDENTITY);
+      this.applyCameraOrientation(offset);
       return true;
     }
     return new Promise(resolve => this.holder.map.camera.flyToBoundingSphere(
@@ -252,7 +253,11 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
       {
         offset,
         duration: (duration ?? 500) / 1000,
-        complete: () => { this.holder.map.camera.lookAtTransform(Matrix4.IDENTITY); resolve(true); },
+        complete: () => {
+          this.holder.map.camera.lookAtTransform(Matrix4.IDENTITY);
+          this.applyCameraOrientation(offset);
+          resolve(true);
+        },
         cancel: () => resolve(false),
       },
     ));
@@ -307,6 +312,29 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     const [nearLeft, nearRight, farLeft, farRight] = corners as GeoPoint[];
     const bounds = createGeoRectBounds(); corners.forEach(value => bounds.extend(value!));
     return { bounds, nearLeft, nearRight, farLeft, farRight };
+  }
+
+  /**
+   * カメラの向きを入れ直す。**`lookAt` / `flyToBoundingSphere` だけでは bearing が効かない。**
+   *
+   * どちらも向きを `HeadingPitchRange` で受け取るが、Cesium はその offset から
+   * `right = cross(direction, UNIT_Z)` で右方向を作る。pitch がちょうど -90 度
+   * （真上から見下ろす）だと direction が -Z になって外積がゼロになり、heading と
+   * 無関係な固定軸（`UNIT_X`）へフォールバックする。つまり **tilt 0 のとき heading が
+   * 丸ごと落ちて、bearing をいくつにしても常に北が上のまま描かれる。**
+   * tilt 0 は既定値なので、実質ほぼ全てのカメラが該当していた。
+   *
+   * 位置は `lookAt` が正しく置く（pitch -90 では heading に依らず真上に来る）ので、
+   * ここでは位置をそのままに向きだけを `setView` で入れ直す。`setView` の
+   * heading/pitch/roll は ENU フレームの回転として定義されていて pitch ±90 でも
+   * 縮退しない。pitch が -90 以外のときは同じ向きを入れ直すだけの no-op になる。
+   */
+  private applyCameraOrientation(offset: HeadingPitchRange): void {
+    const camera = this.holder.map.camera;
+    camera.setView({
+      destination: Cartesian3.clone(camera.positionWC, new Cartesian3()),
+      orientation: { heading: offset.heading, pitch: offset.pitch, roll: 0 },
+    });
   }
 
   private orbitCamera(
