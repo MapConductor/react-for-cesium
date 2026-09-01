@@ -2,8 +2,7 @@ import {
   computeOffset,
   createMapCameraPosition,
   type GeoPoint,
-  type MapCameraPosition,
-} from '@mapconductor/js-sdk-core';
+  type MapCameraPosition, toNativeHeading, bearingFromNativeHeading, } from '@mapconductor/js-sdk-core';
 import { ZoomAltitudeConverter } from './zoom/ZoomAltitudeConverter';
 
 const NEGATIVE_TILT_TARGET_DISTANCE_SCALE = 1.83;
@@ -44,7 +43,7 @@ export function toCameraPosition(
       // fitBounds passes snapZoom:false to keep its computed fractional zoom;
       // rounding it would break the fit and make `padding` have no visible effect.
       zoom: snapZoom ? snapZoomToGoogle(position.zoom) : position.zoom,
-      bearing: position.bearing,
+      bearing: toNativeHeading(position.bearing),
       tilt: position.tilt,
     };
   }
@@ -58,13 +57,13 @@ export function toCameraPosition(
   const target = computeOffset({
     origin: position.position,
     distance: distance * Math.cos(tiltAbsRad) * Math.tan(tiltAbsRad) * NEGATIVE_TILT_TARGET_DISTANCE_SCALE,
-    heading: position.bearing,
+    heading: toNativeHeading(position.bearing),
   });
 
   return {
     target,
     zoom: position.zoom + NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT * (tiltAbs / MAX_NEGATIVE_TILT),
-    bearing: position.bearing,
+    bearing: toNativeHeading(position.bearing),
     tilt: tiltAbs,
   };
 }
@@ -91,8 +90,8 @@ export function toMapCameraPosition({
       distance: distance * Math.cos(tiltAbsRad) * Math.tan(tiltAbsRad) * NEGATIVE_TILT_TARGET_DISTANCE_SCALE,
       heading: bearing + 180,
     });
-    return createMapCameraPosition({ position, zoom: originalZoom, bearing, tilt: -tiltAbs });
+    return createMapCameraPosition({ position, zoom: originalZoom, bearing: bearingFromNativeHeading(bearing), tilt: -tiltAbs });
   }
 
-  return createMapCameraPosition({ position: target, zoom, bearing, tilt });
+  return createMapCameraPosition({ position: target, zoom, bearing: bearingFromNativeHeading(bearing), tilt });
 }
