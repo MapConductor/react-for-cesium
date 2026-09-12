@@ -296,6 +296,22 @@ declare class CesiumMapViewController extends BaseMapViewController implements M
     fitBounds(bounds: GeoRectBounds, padding: number): Promise<boolean>;
     getCameraPosition(): MapCameraPosition;
     private getVisibleRegion;
+    /**
+     * カメラの向きを入れ直す。**`lookAt` / `flyToBoundingSphere` だけでは bearing が効かない。**
+     *
+     * どちらも向きを `HeadingPitchRange` で受け取るが、Cesium はその offset から
+     * `right = cross(direction, UNIT_Z)` で右方向を作る。pitch がちょうど -90 度
+     * （真上から見下ろす）だと direction が -Z になって外積がゼロになり、heading と
+     * 無関係な固定軸（`UNIT_X`）へフォールバックする。つまり **tilt 0 のとき heading が
+     * 丸ごと落ちて、bearing をいくつにしても常に北が上のまま描かれる。**
+     * tilt 0 は既定値なので、実質ほぼ全てのカメラが該当していた。
+     *
+     * 位置は `lookAt` が正しく置く（pitch -90 では heading に依らず真上に来る）ので、
+     * ここでは位置をそのままに向きだけを `setView` で入れ直す。`setView` の
+     * heading/pitch/roll は ENU フレームの回転として定義されていて pitch ±90 でも
+     * 縮退しない。pitch が -90 以外のときは同じ向きを入れ直すだけの no-op になる。
+     */
+    private applyCameraOrientation;
     private orbitCamera;
     private notifyControllersCameraChanged;
     setOnMarkerClickListener(value: OnMarkerEventHandler | null): void;
