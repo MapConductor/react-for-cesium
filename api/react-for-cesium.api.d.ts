@@ -51,7 +51,7 @@ interface CesiumMapViewProps extends MapViewBaseProps<CesiumMapViewStateInterfac
     restrictBounds?: GeoRectBounds;
 }
 
-declare function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps): react.JSX.Element;
+declare function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps): react.JSX.Element;
 
 interface ZoomAltitudeViewportSize {
     width: number;
