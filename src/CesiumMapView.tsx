@@ -96,7 +96,9 @@ export function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded
     }).catch(reason => { if (!cancelled) callbacks.current.onError?.(reason instanceof Error ? reason : new Error(String(reason))); });
 
     return () => { cancelled = true; mapViewStateInternal(state).setCameraPositionChangeListener(null); mapViewStateInternal(state).setController(null); bridgeUnsubs.current.forEach(fn => fn()); bridgeUnsubs.current = []; provider.destroy(); };
-  }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state, state.mapDesignType.id]);
+    // Design changes are applied live via the controller (see the state's
+    // `mapDesignType` setter), so they must not recreate the map.
+  }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state]);
 
   useMapUISettings(state, controller);
   // マップ生成時 config だけでなく、prop の変化にも追随させる（android-sdk 相当）。
