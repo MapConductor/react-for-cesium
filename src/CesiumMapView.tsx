@@ -16,7 +16,14 @@ import {
   useMapUISettings,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
-import { type GeoPoint, type MapCameraPosition, type MarkerAnimationOverlayEntry, type OverlayCollector, mapViewStateInternal } from '@mapconductor/js-sdk-core';
+import {
+  type GeoPoint,
+  type MapCameraPosition,
+  type MarkerAnimationOverlayEntry,
+  type OverlayCollector,
+  mapViewStateInternal,
+  RasterTilePreferenceKey,
+} from '@mapconductor/js-sdk-core';
 import { CesiumProvider } from './CesiumProvider';
 import type { CesiumConfig } from './CesiumMapConfig';
 import type { CesiumMapViewController } from './CesiumMapViewController';
@@ -99,6 +106,16 @@ export function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded
   // （android-sdk の *MapView.kt / ios-sdk の *MapView.swift が
   //  MarkerRenderingSupportKey を put するのと同じ位置づけ）。
   useMarkerRenderingSupport(state, scope, controller);
+
+  // Cesium's WebMercator imagery grid uses 256 CSS-pixel tiles. If the
+  // vector-tile layer keeps its shared 512-pixel default, Cesium selects the
+  // next detail level and roads and labels render at half the MapLibre size.
+  useEffect(() => {
+    state.serviceRegistry.put(RasterTilePreferenceKey, { preferredTileSize: 256 });
+    return () => {
+      state.serviceRegistry.remove(RasterTilePreferenceKey);
+    };
+  }, [state]);
 
   return <MapContext.Provider value={createMapContextValue({ controller, isReady, isLoaded, state })}>
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', ...containerStyle }}>
