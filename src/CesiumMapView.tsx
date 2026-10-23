@@ -15,7 +15,7 @@ import {
   useMapUISettings,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
-import { type GeoPoint, type MapCameraPosition, type MarkerAnimationOverlayEntry, type OverlayCollector, mapViewStateInternal } from '@mapconductor/js-sdk-core';
+import { type GeoPoint, type MapCameraPosition, type MarkerAnimationOverlayEntry, type OverlayCollector, mapViewStateInternal, markerIconExtentPx } from '@mapconductor/js-sdk-core';
 import { CesiumProvider } from './CesiumProvider';
 import type { CesiumConfig } from './CesiumMapConfig';
 import type { CesiumMapViewController } from './CesiumMapViewController';
@@ -103,8 +103,8 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
         <MarkerAnimationLayer entries={animationEntries} resolveScreenOffset={entry => controller.holder.toScreenOffset(entry.state.position)} />
       </div>}
       {bubbleEntries.length > 0 && controller && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>{bubbleEntries.map(entry => {
-        const icon = entry.icon; const size = icon ? icon.iconSize * icon.scale : 0;
-        return <InfoBubbleOverlay key={entry.id} positionOffset={controller.holder.toScreenOffset(entry.positionProvider()) ?? { x: -10000, y: -10000 }} iconSize={{ width: size, height: size }} iconOffset={icon?.anchor ?? { x: 0.5, y: 0.5 }} infoAnchorOffset={icon?.infoAnchor ?? { x: 0.5, y: 0.5 }} tailOffset={entry.tailOffset} style={{ pointerEvents: 'auto' }}>{entry.content as ReactNode}</InfoBubbleOverlay>;
+        const icon = entry.icon; const size = markerIconExtentPx(icon);
+        return <InfoBubbleOverlay key={entry.id} positionOffset={controller.holder.toScreenOffset(entry.positionProvider()) ?? { x: -10000, y: -10000 }} iconSize={size} iconOffset={icon?.anchor ?? { x: 0.5, y: 0.5 }} infoAnchorOffset={icon?.infoAnchor ?? { x: 0.5, y: 0.5 }} tailOffset={entry.tailOffset} style={{ pointerEvents: 'auto' }}>{entry.content as ReactNode}</InfoBubbleOverlay>;
       })}</div>}
     </div>
     <MapServiceRegistryProvider registry={state.serviceRegistry}>
