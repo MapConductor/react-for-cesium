@@ -34,6 +34,7 @@ export class CesiumProvider extends MapProvider {
     const container = typeof config.container === 'string' ? document.getElementById(config.container) : config.container;
     if (!container) throw new Error('Container element not found');
     const imageryProvider = config.mapDesignType.imageryProvider;
+    const baseLayer = imageryProvider === null ? null : new ImageryLayer(imageryProvider);
     const viewer = new Viewer(container, {
       animation: false,
       baseLayerPicker: false,
@@ -45,7 +46,7 @@ export class CesiumProvider extends MapProvider {
       selectionIndicator: false,
       timeline: false,
       navigationHelpButton: false,
-      ...(imageryProvider === null ? { baseLayer: false } : { baseLayer: new ImageryLayer(imageryProvider) }),
+      ...(baseLayer === null ? { baseLayer: false } : { baseLayer }),
       ...config.options,
     });
     setGoogleMaps3DFieldOfView(viewer);
@@ -99,6 +100,7 @@ export class CesiumProvider extends MapProvider {
       new CesiumPolygonController(new CesiumPolygonOverlayRenderer(holder)),
       new CesiumGroundImageController(new CesiumGroundImageOverlayRenderer(holder)),
       new CesiumRasterLayerController(new CesiumRasterLayerOverlayRenderer(holder)),
+      baseLayer,
     );
     this.controller = controller;
     let previousHeight = container.clientHeight;

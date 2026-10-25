@@ -51,7 +51,7 @@ interface CesiumMapViewProps extends MapViewBaseProps<CesiumMapViewStateInterfac
     restrictBounds?: GeoRectBounds;
 }
 
-declare function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps): react.JSX.Element;
+declare function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps): react.JSX.Element;
 
 interface ZoomAltitudeViewportSize {
     width: number;
@@ -256,6 +256,8 @@ declare class CesiumMapViewController extends BaseMapViewController implements M
     private readonly polygonController;
     private readonly groundImageController;
     private readonly rasterLayerController;
+    /** The basemap imagery layer, or null for `CesiumDesign.None`. */
+    private baseLayer;
     private readonly eventHelper;
     private readonly input;
     private destroyed;
@@ -264,8 +266,16 @@ declare class CesiumMapViewController extends BaseMapViewController implements M
     private activeMarkerDrag;
     private suppressNextClick;
     private logicalTiltHint;
-    constructor(holder: CesiumMapViewHolder, markerController: CesiumMarkerController, circleController: CesiumCircleController, polylineController: CesiumPolylineController, polygonController: CesiumPolygonController, groundImageController: CesiumGroundImageController, rasterLayerController: CesiumRasterLayerController);
+    constructor(holder: CesiumMapViewHolder, markerController: CesiumMarkerController, circleController: CesiumCircleController, polylineController: CesiumPolylineController, polygonController: CesiumPolygonController, groundImageController: CesiumGroundImageController, rasterLayerController: CesiumRasterLayerController, 
+    /** The basemap imagery layer, or null for `CesiumDesign.None`. */
+    baseLayer?: ImageryLayer | null);
     getMap(): Viewer;
+    /**
+     * Swaps the basemap imagery in place, at index 0 so it stays under every
+     * raster overlay (whose order the renderer restores with `raiseToTop`).
+     * Called by the view state's `mapDesignType` setter.
+     */
+    setMapDesignType(design: CesiumMapDesignType): void;
     /**
      * Cesium's camera controller names its inputs after what they do to the
      * globe, not after the map gesture: in 3D a left drag *rotates* the globe,

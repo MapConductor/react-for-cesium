@@ -11,21 +11,34 @@ import {
   createMapContextValue,
 } from '@mapconductor/js-sdk-react';
 import {
+  useMapViewStyle,
   useCameraRestriction,
   useMapUISettings,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
-import { type GeoPoint, type MapCameraPosition, type MarkerAnimationOverlayEntry, type OverlayCollector, mapViewStateInternal, markerIconExtentPx } from '@mapconductor/js-sdk-core';
+import {
+  type GeoPoint,
+  type MapCameraPosition,
+  type MarkerAnimationOverlayEntry,
+  type OverlayCollector,
+  mapViewStateInternal,
+  RasterTilePreferenceKey,
+  markerIconExtentPx,
+} from '@mapconductor/js-sdk-core';
 import { CesiumProvider } from './CesiumProvider';
 import type { CesiumConfig } from './CesiumMapConfig';
 import type { CesiumMapViewController } from './CesiumMapViewController';
 import type { CesiumMapViewProps } from './CesiumMapViewProps';
 
-export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps) {
+export function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [provider] = useState(() => new CesiumProvider());
   const [scope] = useState(() => new MapViewScope());
   const [controller, setController] = useState<CesiumMapViewController | null>(null);
+
+  // 地図の見た目。何が起きるかはこのバックエンドが宣言した能力で決まるので、
+  // ここにプロバイダ固有の分岐は無い。
+  useMapViewStyle(state, controller, mapStyle, onStyleDiagnostics);
   const [isReady, setIsReady] = useState(false);
   // `onMapLoaded` と同じ瞬間を「値」として持つ。イベントを取り逃した後から
   // マウントした子（examples の Three.js overlay 等）も読めるようにするため。
@@ -84,7 +97,9 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
     }).catch(reason => { if (!cancelled) callbacks.current.onError?.(reason instanceof Error ? reason : new Error(String(reason))); });
 
     return () => { cancelled = true; mapViewStateInternal(state).setCameraPositionChangeListener(null); mapViewStateInternal(state).setController(null); bridgeUnsubs.current.forEach(fn => fn()); bridgeUnsubs.current = []; provider.destroy(); };
-  }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state, state.mapDesignType.id]);
+    // Design changes are applied live via the controller (see the state's
+    // `mapDesignType` setter), so they must not recreate the map.
+  }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state]);
 
   useMapUISettings(state, controller);
   // マップ生成時 config だけでなく、prop の変化にも追随させる（android-sdk 相当）。
@@ -94,6 +109,16 @@ export function CesiumMapView({ state, onMapLoaded, onMapClick, onMapLongClick, 
   // （android-sdk の *MapView.kt / ios-sdk の *MapView.swift が
   //  MarkerRenderingSupportKey を put するのと同じ位置づけ）。
   useMarkerRenderingSupport(state, scope, controller);
+
+  // Cesium's WebMercator imagery grid uses 256 CSS-pixel tiles. If the
+  // vector-tile layer keeps its shared 512-pixel default, Cesium selects the
+  // next detail level and roads and labels render at half the MapLibre size.
+  useEffect(() => {
+    state.serviceRegistry.put(RasterTilePreferenceKey, { preferredTileSize: 256 });
+    return () => {
+      state.serviceRegistry.remove(RasterTilePreferenceKey);
+    };
+  }, [state]);
 
   return <MapContext.Provider value={createMapContextValue({ controller, isReady, isLoaded, state })}>
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', ...containerStyle }}>

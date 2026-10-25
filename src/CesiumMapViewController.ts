@@ -5,12 +5,14 @@ import {
   Entity,
   EventHelper,
   HeadingPitchRange,
+  ImageryLayer,
   Matrix4,
   Math as CesiumMath,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   type Viewer,
 } from 'cesium';
+import type { CesiumMapDesignType } from './CesiumDesign';
 import {
   BaseMapViewController,
   MapUISettingsDiagnostics,
@@ -70,6 +72,8 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     private readonly polygonController: CesiumPolygonController,
     private readonly groundImageController: CesiumGroundImageController,
     private readonly rasterLayerController: CesiumRasterLayerController,
+    /** The basemap imagery layer, or null for `CesiumDesign.None`. */
+    private baseLayer: ImageryLayer | null = null,
   ) {
     super();
 
@@ -100,6 +104,18 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   }
 
   getMap(): Viewer { return this.holder.map; }
+
+  /**
+   * Swaps the basemap imagery in place, at index 0 so it stays under every
+   * raster overlay (whose order the renderer restores with `raiseToTop`).
+   * Called by the view state's `mapDesignType` setter.
+   */
+  setMapDesignType(design: CesiumMapDesignType): void {
+    const layers = this.holder.map.imageryLayers;
+    if (this.baseLayer) layers.remove(this.baseLayer, true);
+    this.baseLayer = design.imageryProvider ? new ImageryLayer(design.imageryProvider) : null;
+    if (this.baseLayer) layers.add(this.baseLayer, 0);
+  }
 
   /**
    * Cesium's camera controller names its inputs after what they do to the
