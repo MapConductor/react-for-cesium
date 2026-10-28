@@ -181,11 +181,11 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     const circle = kind === 'circle' ? this.circleController.circleManager.getEntity(id)?.state : null;
     if (circle?.clickable) { this.circleController.dispatchClick({ state: circle, clicked }); return true; }
     const polygon = kind === 'polygon' ? this.polygonController.polygonManager.getEntity(id)?.state : null;
-    if (polygon) { this.polygonController.dispatchClick({ state: polygon, clicked } as PolygonEvent); return true; }
+    if (polygon?.clickable) { this.polygonController.dispatchClick({ state: polygon, clicked } as PolygonEvent); return true; }
     const polyline = kind === 'polyline' ? this.polylineController.polylineManager.getEntity(id)?.state : null;
-    if (polyline) { this.polylineController.dispatchClick({ state: polyline, clicked } as PolylineEvent); return true; }
+    if (polyline?.clickable) { this.polylineController.dispatchClick({ state: polyline, clicked } as PolylineEvent); return true; }
     const groundImage = kind === 'ground-image' ? this.groundImageController.groundImageManager.getEntity(id)?.state : null;
-    if (groundImage) { this.groundImageController.dispatchClick({ state: groundImage, clicked } as GroundImageEvent); return true; }
+    if (groundImage?.clickable) { this.groundImageController.dispatchClick({ state: groundImage, clicked } as GroundImageEvent); return true; }
     return false;
   }
 
