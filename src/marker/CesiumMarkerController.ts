@@ -14,6 +14,7 @@ import {
 } from '@mapconductor/js-sdk-core';
 import type { Entity } from 'cesium';
 import { CesiumMarkerRenderer } from './CesiumMarkerRenderer';
+import { canvasTilePixelRatio } from './canvasTilePixelRatio';
 
 /**
  * Cesium marker controller.
@@ -94,7 +95,19 @@ export class CesiumMarkerController extends AbstractMarkerController<Entity> {
 
     this.tileRouteId ??= `mc-cesium-tile-${generateId()}`;
     const server = LocalTileServer.startServer();
-    const renderer = new MarkerTileRenderer<MarkerState>(tiledStates, 256, this.tilingOptions.iconScaleCallback ?? undefined);
+    // Imagery tiles are textures placed by their rectangle, so a 2x image covers
+    // the same ground as a 1x one; the ratio follows Cesium's canvas.
+    const holder = this.renderer.holder;
+    const pixelRatio = holder.isDestroyed() ? 1 : canvasTilePixelRatio(holder.map);
+    const renderer = new MarkerTileRenderer<MarkerState>(
+      tiledStates,
+      256,
+      this.tilingOptions.iconScaleCallback ?? undefined,
+      1.0,
+      false,
+      this.tilingOptions.declutterPx,
+      pixelRatio,
+    );
     this.tileRenderer = renderer;
     this.tileVersion++;
     server.register(this.tileRouteId, renderer);
@@ -106,6 +119,7 @@ export class CesiumMarkerController extends AbstractMarkerController<Entity> {
       routeId: this.tileRouteId,
       tileSize: 256,
       cacheKey: String(this.tileVersion),
+      pixelRatio,
     });
 
     // A newer sync (or clear()/destroy()) ran while we awaited the service
