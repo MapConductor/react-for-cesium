@@ -385,7 +385,14 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   setMarkerAnimationOverlayHost(host: MarkerAnimationOverlayHost | null): void { this.markerController.setMarkerAnimationOverlayHost(host); }
 
   async clearOverlays(): Promise<void> {
-    await Promise.all([this.markerController.clear(), this.circleController.clear(), this.polylineController.clear(), this.polygonController.clear(), this.groundImageController.clear(), this.rasterLayerController.clear()]);
+    await this.clearOverlayControllers([
+      this.markerController,
+      this.circleController,
+      this.polylineController,
+      this.polygonController,
+      this.groundImageController,
+      this.rasterLayerController,
+    ]);
   }
   destroy(): void {
     if (this.destroyed) return;
