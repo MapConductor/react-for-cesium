@@ -12,7 +12,7 @@ import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCesiumColor } from '../color';
 import { toCartesian3 } from '../helpers';
 import { cesiumEntityId } from '../entityId';
-import { CIRCLE_Z_BASE } from '../zOrder';
+import { groundZIndex } from '../zOrder';
 
 export class CesiumCircleOverlayRenderer implements CircleOverlayRenderer<Entity> {
   constructor(readonly holder: CesiumMapViewHolder) {}
@@ -29,7 +29,7 @@ export class CesiumCircleOverlayRenderer implements CircleOverlayRenderer<Entity
     // No height: the ellipse renders as ground geometry, which is what makes
     // Cesium honour zIndex ordering against other overlays (polylines sit in
     // a higher band; see zOrder.ts).
-    entity.ellipse = new EllipseGraphics({ semiMajorAxis: state.radiusMeters, semiMinorAxis: state.radiusMeters, material: toCesiumColor(state.fillColor), outline: false, zIndex: CIRCLE_Z_BASE + (state.zIndex ?? 0) });
+    entity.ellipse = new EllipseGraphics({ semiMajorAxis: state.radiusMeters, semiMinorAxis: state.radiusMeters, material: toCesiumColor(state.fillColor), outline: false, zIndex: groundZIndex('circle', state.zIndex) });
     // Geometry outlines are drawn with WebGL lineWidth, which is capped at
     // 1px on effectively every platform, so EllipseGraphics cannot honour
     // strokeWidth. Draw the outline as a clamped polyline ring instead —
@@ -41,7 +41,7 @@ export class CesiumCircleOverlayRenderer implements CircleOverlayRenderer<Entity
           material: toCesiumColor(state.strokeColor),
           clampToGround: true,
           arcType: ArcType.GEODESIC,
-          zIndex: CIRCLE_Z_BASE + (state.zIndex ?? 0),
+          zIndex: groundZIndex('circle', state.zIndex),
         })
       : undefined;
   }
