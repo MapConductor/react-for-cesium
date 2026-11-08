@@ -1,5 +1,5 @@
 import { ArcType, Cartesian3, Entity, PolygonGraphics, PolygonHierarchy, PolylineGraphics } from 'cesium';
-import { WGS84Geodesic, Planar, resolveHoles, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
+import { densifyGeodesicRing, Planar, resolveHoles, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCesiumColor } from '../color';
 import { pointsToDegrees } from '../helpers';
@@ -27,9 +27,12 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
     // one. Densify each ring ourselves — great-circle interpolation when
     // geodesic, linear lon/lat interpolation (Google Maps' straight-line
     // semantics) otherwise — so the two modes produce their intended shapes.
+    // The geodesic ring includes its closing edge (last vertex -> first):
+    // interpolating only between neighbours leaves that edge a rhumb chord in
+    // the fill while the GEODESIC outline polyline curves.
     const densify = (points: GeoPoint[]): GeoPoint[] =>
       state.geodesic
-        ? WGS84Geodesic.createInterpolatePoints(points, GEODESIC_MAX_SEGMENT_LENGTH_METERS)
+        ? densifyGeodesicRing(points, GEODESIC_MAX_SEGMENT_LENGTH_METERS)
         : Planar.createInterpolatePoints(points);
 
     // No height: the polygon renders as ground geometry, which is what makes
