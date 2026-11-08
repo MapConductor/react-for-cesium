@@ -4,7 +4,7 @@ import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCesiumColor } from '../color';
 import { pointsToDegrees } from '../helpers';
 import { cesiumEntityId } from '../entityId';
-import { POLYGON_Z_BASE } from '../zOrder';
+import { groundZIndex } from '../zOrder';
 
 // Same segment length react-for-arcgis uses for polygons: coarser than
 // polylines so world-scale rings don't densify into huge geometries.
@@ -60,7 +60,7 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
       // render rings approaching hemisphere size (world-mask polygons render
       // inverted or disappear) — keep mask polygons regional.
       arcType: ArcType.RHUMB,
-      zIndex: POLYGON_Z_BASE + state.zIndex,
+      zIndex: groundZIndex('polygon', state.zIndex),
     });
     entity.polyline = state.strokeWidth > 0
       ? new PolylineGraphics({
@@ -73,7 +73,7 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
           // one line. With GEODESIC the outline bowed away from the fill on
           // every segment, most visibly on long undensified ones.
           arcType: ArcType.RHUMB,
-          zIndex: POLYGON_Z_BASE + state.zIndex,
+          zIndex: groundZIndex('polygon', state.zIndex),
         })
       : undefined;
   }

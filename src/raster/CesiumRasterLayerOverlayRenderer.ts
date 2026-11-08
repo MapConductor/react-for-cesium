@@ -44,7 +44,9 @@ export class CesiumRasterLayerOverlayRenderer implements RasterLayerOverlayRende
     if (this.holder.isDestroyed()) return null;
     const layer = new ImageryLayer(provider, { alpha: state.opacity, show: state.visible });
     this.holder.map.imageryLayers.add(layer);
-    this.zIndexes.set(layer, state.zIndex);
+    // Marker tiles are mounted as a raster. Cesium draws every imagery layer under the ground
+    // primitives, so they cannot reach the marker band; keep them at least above the app's rasters.
+    this.zIndexes.set(layer, state.id === 'mc-marker-tiles' ? Number.POSITIVE_INFINITY : state.zIndex);
     return layer;
   }
 }
