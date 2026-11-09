@@ -2,6 +2,7 @@ import { Color, Entity, ImageMaterialProperty, Rectangle, RectangleGraphics } fr
 import { type GroundImageAddParams, type GroundImageChangeParams, type GroundImageEntity, type GroundImageOverlayRenderer, type GroundImageState } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { cesiumEntityId } from '../entityId';
+import { groundZIndex } from '../zOrder';
 
 export class CesiumGroundImageOverlayRenderer implements GroundImageOverlayRenderer<Entity> {
   constructor(readonly holder: CesiumMapViewHolder) { }
@@ -30,7 +31,10 @@ export class CesiumGroundImageOverlayRenderer implements GroundImageOverlayRende
       // transparent pixels; `color`'s alpha only scales the overall opacity, not
       // the per-pixel alpha, so both are needed.
       material: new ImageMaterialProperty({ image: state.imageUrl, color: Color.WHITE.withAlpha(state.opacity), transparent: true }),
-      height: 0,
+      // Ground geometry (no height) so Cesium orders it by zIndex with the polygons, circles and
+      // polylines: under them, in the ground-image band. With `height: 0` it was an ordinary
+      // primitive drawn after every ground primitive, i.e. over the polygons.
+      zIndex: groundZIndex('groundImage', 0),
     });
   }
 }

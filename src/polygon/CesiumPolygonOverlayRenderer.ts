@@ -1,14 +1,16 @@
 import { ArcType, Cartesian3, Entity, PolygonGraphics, PolygonHierarchy, PolylineGraphics } from 'cesium';
-import { WGS84Geodesic, Planar, resolveHoles, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
+import { densifyPolygonRing, resolveHoles, type GeoPoint, type PolygonAddParams, type PolygonChangeParams, type PolygonEntity, type PolygonOverlayRenderer, type PolygonState } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCesiumColor } from '../color';
 import { pointsToDegrees } from '../helpers';
 import { cesiumEntityId } from '../entityId';
-import { POLYGON_Z_BASE } from '../zOrder';
+import { groundZIndex } from '../zOrder';
 
 // Same segment length react-for-arcgis uses for polygons: coarser than
 // polylines so world-scale rings don't densify into huge geometries.
 const GEODESIC_MAX_SEGMENT_LENGTH_METERS = 100_000;
+// Planar.createInterpolatePoints' default, the same as polylines use.
+const LINEAR_MAX_SEGMENT_LENGTH_METERS = 10_000;
 
 export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Entity> {
   constructor(readonly holder: CesiumMapViewHolder) {}
@@ -27,10 +29,15 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
     // one. Densify each ring ourselves — great-circle interpolation when
     // geodesic, linear lon/lat interpolation (Google Maps' straight-line
     // semantics) otherwise — so the two modes produce their intended shapes.
+    // Each ring includes its closing edge (last vertex -> first) in both
+    // modes: interpolating only between neighbours leaves that edge one long
+    // rhumb segment in the fill while the outline curved along it.
     const densify = (points: GeoPoint[]): GeoPoint[] =>
-      state.geodesic
-        ? WGS84Geodesic.createInterpolatePoints(points, GEODESIC_MAX_SEGMENT_LENGTH_METERS)
-        : Planar.createInterpolatePoints(points);
+      densifyPolygonRing(
+        points,
+        state.geodesic,
+        state.geodesic ? GEODESIC_MAX_SEGMENT_LENGTH_METERS : LINEAR_MAX_SEGMENT_LENGTH_METERS,
+      );
 
     // No height: the polygon renders as ground geometry, which is what makes
     // Cesium honour zIndex ordering against other overlays (polylines sit in
@@ -53,7 +60,7 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
       // render rings approaching hemisphere size (world-mask polygons render
       // inverted or disappear) — keep mask polygons regional.
       arcType: ArcType.RHUMB,
-      zIndex: POLYGON_Z_BASE + state.zIndex,
+      zIndex: groundZIndex('polygon', state.zIndex),
     });
     entity.polyline = state.strokeWidth > 0
       ? new PolylineGraphics({
@@ -61,8 +68,12 @@ export class CesiumPolygonOverlayRenderer implements PolygonOverlayRenderer<Enti
           width: state.strokeWidth,
           material: toCesiumColor(state.strokeColor),
           clampToGround: true,
-          arcType: ArcType.GEODESIC,
-          zIndex: POLYGON_Z_BASE + state.zIndex,
+          // Same arc type as the fill: between the densified vertices both
+          // fill and outline take the rhumb (lon/lat) segment, so they trace
+          // one line. With GEODESIC the outline bowed away from the fill on
+          // every segment, most visibly on long undensified ones.
+          arcType: ArcType.RHUMB,
+          zIndex: groundZIndex('polygon', state.zIndex),
         })
       : undefined;
   }
