@@ -1,5 +1,5 @@
 import { ArcGisMapServerImageryProvider, ImageryLayer, Resource, TileMapServiceImageryProvider, UrlTemplateImageryProvider, WebMercatorTilingScheme } from 'cesium';
-import { type MapCameraPosition, type RasterLayerAddParams, type RasterLayerChangeParams, type RasterLayerEntity, type RasterLayerOverlayRenderer, type RasterLayerState, POLYGON_TILE_LAYER_ID } from '@mapconductor/js-sdk-core';
+import { type MapCameraPosition, type RasterLayerAddParams, type RasterLayerChangeParams, type RasterLayerEntity, type RasterLayerOverlayRenderer, type RasterLayerState, POLYGON_TILE_LAYER_ID, POLYLINE_TILE_LAYER_ID } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 
 /** ヘッダ指定があれば Resource に包む。無ければテンプレート文字列のまま返す。 */
@@ -44,16 +44,18 @@ export class CesiumRasterLayerOverlayRenderer implements RasterLayerOverlayRende
     if (this.holder.isDestroyed()) return null;
     const layer = new ImageryLayer(provider, { alpha: state.opacity, show: state.visible });
     this.holder.map.imageryLayers.add(layer);
-    // Marker and polygon tiles are mounted as a raster. Cesium draws every imagery layer under
-    // the ground primitives, so they cannot reach their bands; keep them at least above the app's
-    // rasters, the marker tiles over the polygon tiles.
+    // Marker, polygon and polyline tiles are mounted as a raster. Cesium draws every imagery layer
+    // under the ground primitives, so they cannot reach their bands; keep them at least above the
+    // app's rasters, in band order: polygon tiles, then polyline tiles, then marker tiles.
     this.zIndexes.set(
       layer,
       state.id === 'mc-marker-tiles'
         ? Number.POSITIVE_INFINITY
         : state.id === POLYGON_TILE_LAYER_ID
           ? Number.MAX_SAFE_INTEGER
-          : state.zIndex,
+          : state.id === POLYLINE_TILE_LAYER_ID
+            ? Number.MAX_VALUE
+            : state.zIndex,
     );
     return layer;
   }
