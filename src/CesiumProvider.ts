@@ -1,4 +1,4 @@
-import { PolylineTiler, PolylineTilingOptions } from '@mapconductor/js-sdk-core';
+import { PolylineTiler, PolylineTilingOptions, CircleTiler, CircleTilingOptions } from '@mapconductor/js-sdk-core';
 import {
   Cartesian3,
   Cartographic,
@@ -97,10 +97,14 @@ export class CesiumProvider extends MapProvider {
     // layer (the view controller mounts it); taps still resolve against the original paths.
     const polylineController = new CesiumPolylineController(new CesiumPolylineOverlayRenderer(holder));
     polylineController.tiler = new PolylineTiler(config.polylineTilingOptions ?? PolylineTilingOptions.Default);
+    // Many circles are drawn as tiles too, shown as one raster layer at the bottom of the circle
+    // band (the view controller mounts it); taps still resolve against the original circles.
+    const circleController = new CesiumCircleController(new CesiumCircleOverlayRenderer(holder));
+    circleController.tiler = new CircleTiler(config.circleTilingOptions ?? CircleTilingOptions.Default);
     const controller = new CesiumMapViewController(
       holder,
       new CesiumMarkerController(new CesiumMarkerRenderer(holder), config.markerTilingOptions),
-      new CesiumCircleController(new CesiumCircleOverlayRenderer(holder)),
+      circleController,
       polylineController,
       new CesiumPolygonController(new CesiumPolygonOverlayRenderer(holder)),
       new CesiumGroundImageController(new CesiumGroundImageOverlayRenderer(holder)),

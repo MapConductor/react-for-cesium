@@ -1,4 +1,4 @@
-import { MapDesignTypeInterface, AttributionRule, MapViewStateInterface, MapViewState, MapCameraPosition, MapViewControllerInterface, MapViewBaseProps, MarkerTilingOptions, PolylineTilingOptions, GeoRectBounds, AbstractZoomAltitudeConverter, MapViewHolderBase, GeoPointInterface, Offset, GeoPoint, MarkerOverlayRenderer, MarkerEntity, AbstractMarkerOverlayRenderer, AddParams, ChangeParams, MarkerState, AbstractMarkerController, RasterLayerState, CircleOverlayRenderer, CircleAddParams, CircleChangeParams, CircleEntity, CircleController, PolylineOverlayRenderer, PolylineAddParams, PolylineChangeParams, PolylineEntity, PolylineController, PolygonOverlayRenderer, PolygonAddParams, PolygonChangeParams, PolygonEntity, PolygonController, GroundImageOverlayRenderer, GroundImageAddParams, GroundImageChangeParams, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MarkerCapable, CircleCapable, PolylineCapable, PolygonCapable, GroundImageCapable, RasterLayerCapable, MapUISettings, OnMapInitializedHandler, OnMarkerEventHandler, MarkerAnimationOverlayHost, MapConfig, MapProvider } from '@mapconductor/js-sdk-core';
+import { MapDesignTypeInterface, AttributionRule, MapViewStateInterface, MapViewState, MapCameraPosition, MapViewControllerInterface, MapViewBaseProps, MarkerTilingOptions, PolylineTilingOptions, CircleTilingOptions, GeoRectBounds, AbstractZoomAltitudeConverter, MapViewHolderBase, GeoPointInterface, Offset, GeoPoint, MarkerOverlayRenderer, MarkerEntity, AbstractMarkerOverlayRenderer, AddParams, ChangeParams, MarkerState, AbstractMarkerController, RasterLayerState, CircleOverlayRenderer, CircleAddParams, CircleChangeParams, CircleEntity, CircleController, PolylineOverlayRenderer, PolylineAddParams, PolylineChangeParams, PolylineEntity, PolylineController, PolygonOverlayRenderer, PolygonAddParams, PolygonChangeParams, PolygonEntity, PolygonController, GroundImageOverlayRenderer, GroundImageAddParams, GroundImageChangeParams, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MarkerCapable, CircleCapable, PolylineCapable, PolygonCapable, GroundImageCapable, RasterLayerCapable, MapUISettings, OnMapInitializedHandler, OnMarkerEventHandler, MarkerAnimationOverlayHost, MapConfig, MapProvider } from '@mapconductor/js-sdk-core';
 import { ImageryProvider, Viewer, Entity, ImageryLayer } from 'cesium';
 import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
@@ -51,13 +51,19 @@ interface CesiumMapViewProps extends MapViewBaseProps<CesiumMapViewStateInterfac
      * handed to the map.
      */
     polylineTilingOptions?: PolylineTilingOptions;
+    /**
+     * When to draw circles as raster tiles ({@link CircleTilingOptions.Default} if omitted).
+     * Read when the map is created; a later value applies from the next time the circles are
+     * handed to the map.
+     */
+    circleTilingOptions?: CircleTilingOptions;
     minZoom?: number;
     maxZoom?: number;
     /** Restricts panning/zooming so the viewport cannot leave this rectangle. */
     restrictBounds?: GeoRectBounds;
 }
 
-declare function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, polylineTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps): react.JSX.Element;
+declare function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, polylineTilingOptions, circleTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps): react.JSX.Element;
 
 interface ZoomAltitudeViewportSize {
     width: number;
@@ -357,6 +363,11 @@ interface CesiumConfig extends MapConfig {
      * The controller's `setPolylineTilingOptions` replaces it later.
      */
     polylineTilingOptions?: PolylineTilingOptions;
+    /**
+     * When to draw circles as raster tiles; {@link CircleTilingOptions.Default} if omitted.
+     * The controller's `setCircleTilingOptions` replaces it later.
+     */
+    circleTilingOptions?: CircleTilingOptions;
     minZoom?: number;
     maxZoom?: number;
     /** Restricts panning/zooming so the viewport cannot leave this rectangle. */
