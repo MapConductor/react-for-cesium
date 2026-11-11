@@ -1,11 +1,11 @@
-import { Billboard, BillboardCollection, BoundingSphere, Cartesian2, Cartesian3, Color, ConstantPositionProperty, ConstantProperty, Ellipsoid, Entity, Occluder, PointGraphics } from 'cesium';
+import { Billboard, BillboardCollection, BoundingSphere, Cartesian2, Cartesian3, Color, ConstantPositionProperty, ConstantProperty, Ellipsoid, Entity, Math as CesiumMath, Occluder, PointGraphics } from 'cesium';
 import {
   type AddParams,
   AbstractMarkerOverlayRenderer,
   type ChangeParams,
   type MarkerEntity,
   type MarkerState,
-  markerDrawOrder,
+  MarkerDrawOrderView,
 } from '@mapconductor/js-sdk-core';
 import { CesiumMapViewHolder } from '../CesiumMapViewHolder';
 import { toCartesian3 } from '../helpers';
@@ -20,6 +20,9 @@ interface BillboardSpec {
   height: number;
   pixelOffset: Cartesian2;
   order: number;
+  /** 回転したときに order を計算し直すための元の値。 */
+  zIndex: number | null | undefined;
+  geoPosition: MarkerState['position'];
 }
 
 // マーカーは自前の BillboardCollection に描く。
@@ -27,8 +30,9 @@ interface BillboardSpec {
 // 深度テストを切った billboard（disableDepthTestDistance=Infinity）はどれも near 面に置かれ、
 // 深度が等しいので**先に描いたものが残る**（コレクションの前ほど手前）。Entity の billboard は
 // プール済みの番号を使い回すので並びを制御できず、同じ地点では先に足したマーカーが手前に
-// 出ていた。ここでは共通の重なり順（zIndex、同じなら南、緯度も同じなら西が手前。
-// markerDrawOrder）の**逆順**に並べ直す。
+// 出ていた。ここでは共通の重なり順（zIndex、同じなら回転後の画面で下、同じ行なら左が手前。
+// markerDrawOrder）の**逆順**に並べ直す。カメラの heading が変わったら毎フレームの preRender で
+// 並べ直す（0.5 度未満は無視）。
 //
 // マーカーの Entity は地図の entities には入れず、マーカーの手綱（位置・表示・id）としてだけ
 // 持つ。billboard の id にその Entity を入れるので、`scene.pick` は今までどおり Entity を返す。
@@ -46,6 +50,8 @@ export class CesiumMarkerRenderer extends AbstractMarkerOverlayRenderer<CesiumMa
   private readonly billboardOf = new Map<Entity, Billboard>();
   /** 並びが崩れているかもしれない（追加・順の変化）。onPostProcess / preRender で並べ直す。 @internal */
   private orderDirty = false;
+  /** 並びの基準にしたカメラの heading。 @internal */
+  private readonly drawOrder = new MarkerDrawOrderView();
   /**
    * カメラ位置から見て地球の裏側かどうかを判定するオクルーダー。
    * 地球を「極半径（最小半径）の球」で近似する。極半径にすることで、可視マーカーを誤って
@@ -127,7 +133,8 @@ export class CesiumMarkerRenderer extends AbstractMarkerOverlayRenderer<CesiumMa
       spec.position = cartesian;
       const billboard = this.billboardOf.get(marker);
       if (billboard) billboard.position = cartesian;
-      const order = markerDrawOrder(entity.state.zIndex, position);
+      spec.geoPosition = position;
+      const order = this.drawOrder.order(entity.state.zIndex, position);
       if (order !== spec.order) {
         spec.order = order;
         this.orderDirty = true;
@@ -142,6 +149,7 @@ export class CesiumMarkerRenderer extends AbstractMarkerOverlayRenderer<CesiumMa
    */
   private readonly updateOcclusion = (): void => {
     if (this.holder.isDestroyed()) return;
+    this.followHeading();
     // 並び直しがまだなら、ここでも済ませる（ドラッグ中は onPostProcess が来ない）。
     if (this.orderDirty) this.rebuildInOrder();
     if (this.markerEntities.size === 0) return;
@@ -190,7 +198,9 @@ export class CesiumMarkerRenderer extends AbstractMarkerOverlayRenderer<CesiumMa
         width: bitmap.size.width,
         height: bitmap.size.height,
         pixelOffset: new Cartesian2(bitmap.size.width * (0.5 - bitmap.anchor.x), bitmap.size.height * (0.5 - bitmap.anchor.y)),
-        order: markerDrawOrder(state.zIndex, state.position),
+        order: this.drawOrder.order(state.zIndex, state.position),
+        zIndex: state.zIndex,
+        geoPosition: state.position,
       };
       const previous = this.specs.get(entity);
       this.specs.set(entity, spec);
@@ -233,6 +243,15 @@ export class CesiumMarkerRenderer extends AbstractMarkerOverlayRenderer<CesiumMa
     if (billboard && this.billboards && !this.billboards.isDestroyed()) this.billboards.remove(billboard);
     this.billboardOf.delete(entity);
     this.specs.delete(entity);
+  }
+
+  /** カメラの heading が変わっていたら、全 billboard の order を計算し直す。 @internal */
+  private followHeading(): void {
+    const camera = this.holder.map.scene.camera;
+    const centerLongitude = CesiumMath.toDegrees(camera.positionCartographic.longitude);
+    if (!this.drawOrder.update(CesiumMath.toDegrees(camera.heading), centerLongitude)) return;
+    for (const spec of this.specs.values()) spec.order = this.drawOrder.order(spec.zIndex, spec.geoPosition);
+    this.orderDirty = true;
   }
 
   /**
