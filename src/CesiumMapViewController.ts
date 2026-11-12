@@ -1,4 +1,4 @@
-import { PolygonTiler, POLYGON_TILE_LAYER_ID, polygonTileRasterLayerState, POLYLINE_TILE_LAYER_ID, polylineTileRasterLayerState, CIRCLE_TILE_LAYER_ID, circleTileRasterLayerState } from '@mapconductor/js-sdk-core';
+import { AbstractZoomAltitudeConverter, MapPaddings, paddedCameraCenter, PolygonTiler, POLYGON_TILE_LAYER_ID, polygonTileRasterLayerState, POLYLINE_TILE_LAYER_ID, polylineTileRasterLayerState, CIRCLE_TILE_LAYER_ID, circleTileRasterLayerState } from '@mapconductor/js-sdk-core';
 import {
   Cartesian2,
   Cartesian3,
@@ -64,6 +64,12 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   private activeMarkerDrag: MarkerDragState | null = null;
   private suppressNextClick = false;
   private logicalTiltHint: number | null = null;
+  /**
+   * 最後に動かしたときの `MapCameraPosition.paddings`。Cesium のカメラに
+   * パディングは無いので、注視点をずらして再現し、読み戻しではパディングを除いた
+   * 領域の中央の地点を返す。
+   */
+  private cameraPaddings: MapPaddings | null = null;
 
   constructor(
     readonly holder: CesiumMapViewHolder,
@@ -284,6 +290,7 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     { animated, duration, snapZoom = true }: { animated: boolean; duration?: number; snapZoom?: boolean },
   ): Promise<boolean> {
     this.logicalTiltHint = position.tilt;
+    this.cameraPaddings = position.paddings ?? this.cameraPaddings;
     const { target, offset } = this.orbitCamera(position, snapZoom);
     if (!animated) {
       this.holder.map.camera.lookAt(target, offset);
@@ -328,19 +335,46 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   getCameraPosition(): MapCameraPosition {
     const camera = this.holder.map.camera;
     const cartographic = camera.positionCartographic;
-    const center = this.holder.fromScreenOffsetSync({ x: this.holder.map.canvas.clientWidth / 2, y: this.holder.map.canvas.clientHeight / 2 });
-    const position = center ?? createGeoPoint({ longitude: CesiumMath.toDegrees(cartographic.longitude), latitude: CesiumMath.toDegrees(cartographic.latitude) });
+    const width = this.holder.map.canvas.clientWidth;
+    const height = this.holder.map.canvas.clientHeight;
+    const center = this.holder.fromScreenOffsetSync({ x: width / 2, y: height / 2 });
+    const lookAt = center ?? createGeoPoint({ longitude: CesiumMath.toDegrees(cartographic.longitude), latitude: CesiumMath.toDegrees(cartographic.latitude) });
+    // パディングを付けて動かした後の position は、パディングを除いた領域の中央に
+    // 見えている地点。zoom は画面中央（注視点）までの距離から求める。
+    const paddings = this.cameraPaddings;
+    const padded = paddings
+      ? this.holder.fromScreenOffsetSync({
+        x: width / 2 + (paddings.left - paddings.right) / 2,
+        y: height / 2 + (paddings.top - paddings.bottom) / 2,
+      })
+      : null;
+    const position = padded ?? lookAt;
     const tilt = CesiumMath.toDegrees(camera.pitch) + 90;
-    const target = Cartesian3.fromDegrees(position.longitude, position.latitude, position.altitude ?? 0);
-    const range = Cartesian3.distance(camera.positionWC, target);
+    const lookAtPoint = Cartesian3.fromDegrees(lookAt.longitude, lookAt.latitude, lookAt.altitude ?? 0);
+    const range = Cartesian3.distance(camera.positionWC, lookAtPoint);
     return toMapCameraPosition({
       target: position,
-      zoom: this.holder.zoomConverter.distanceToZoomLevel({ distance: range, latitude: position.latitude }),
+      zoom: this.holder.zoomConverter.distanceToZoomLevel({ distance: range, latitude: lookAt.latitude }),
       bearing: normalizeDegrees(CesiumMath.toDegrees(camera.heading)),
       tilt,
       logicalTiltHint: this.logicalTiltHint,
       converter: this.holder.zoomConverter,
-    }).copy({ visibleRegion: this.getVisibleRegion() });
+    }).copy({ visibleRegion: this.getVisibleRegion(), paddings: paddings ?? MapPaddings.Zeros, fov: this.verticalFov() });
+  }
+
+  /** カメラの上下視野角（度）。 */
+  private verticalFov(): number | null {
+    const fovy = (this.holder.map.camera.frustum as { fovy?: number }).fovy;
+    return typeof fovy === 'number' && Number.isFinite(fovy) ? CesiumMath.toDegrees(fovy) : null;
+  }
+
+  /** 画面中央までの距離と視野角から決まる中央の縮尺に等しい zoom（パディングの計算用）。 */
+  private zoomForScale(range: number, latitude: number): number {
+    const fov = this.verticalFov() ?? 35;
+    const focal = this.holder.map.canvas.clientHeight / 2 / Math.tan((fov * Math.PI) / 360);
+    const metersPerPixel = range / Math.max(focal, 1);
+    const cosLat = Math.max(Math.cos((latitude * Math.PI) / 180), 0.01);
+    return Math.log2((AbstractZoomAltitudeConverter.WEB_MERCATOR_INITIAL_MPP_256 * cosLat) / metersPerPixel);
   }
 
   private getVisibleRegion(): VisibleRegion | null {
@@ -385,8 +419,19 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     snapZoom = true,
   ): { target: Cartesian3; offset: HeadingPitchRange } {
     const camera = toCameraPosition(position, this.holder.zoomConverter, { snapZoom });
-    const target = Cartesian3.fromDegrees(camera.target.longitude, camera.target.latitude, camera.target.altitude ?? 0);
     const range = this.holder.zoomConverter.zoomLevelToDistance({ zoomLevel: camera.zoom, latitude: camera.target.latitude });
+    // パディングを除いた領域の中央に target が来るよう、注視点（画面中央）をずらす。
+    const lookAt = this.cameraPaddings
+      ? paddedCameraCenter(camera.target, {
+        zoom: this.zoomForScale(range, camera.target.latitude),
+        tilt: Math.max(0, Math.min(89, camera.tilt)),
+        bearing: position.bearing,
+        paddings: this.cameraPaddings,
+        fov: this.verticalFov(),
+        viewport: { width: this.holder.map.canvas.clientWidth, height: this.holder.map.canvas.clientHeight },
+      })
+      : camera.target;
+    const target = Cartesian3.fromDegrees(lookAt.longitude, lookAt.latitude, camera.target.altitude ?? 0);
     const offset = new HeadingPitchRange(
       CesiumMath.toRadians(camera.bearing),
       CesiumMath.toRadians(Math.max(0, Math.min(89, camera.tilt)) - 90),
