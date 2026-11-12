@@ -278,6 +278,12 @@ declare class CesiumMapViewController extends BaseMapViewController implements M
     private activeMarkerDrag;
     private suppressNextClick;
     private logicalTiltHint;
+    /**
+     * 最後に動かしたときの `MapCameraPosition.paddings`。Cesium のカメラに
+     * パディングは無いので、注視点をずらして再現し、読み戻しではパディングを除いた
+     * 領域の中央の地点を返す。
+     */
+    private cameraPaddings;
     constructor(holder: CesiumMapViewHolder, markerController: CesiumMarkerController, circleController: CesiumCircleController, polylineController: CesiumPolylineController, polygonController: CesiumPolygonController, groundImageController: CesiumGroundImageController, rasterLayerController: CesiumRasterLayerController, 
     /** The basemap imagery layer, or null for `CesiumDesign.None`. */
     baseLayer?: ImageryLayer | null);
@@ -317,6 +323,10 @@ declare class CesiumMapViewController extends BaseMapViewController implements M
     private applyCamera;
     fitBounds(bounds: GeoRectBounds, padding: number): Promise<boolean>;
     getCameraPosition(): MapCameraPosition;
+    /** カメラの上下視野角（度）。 */
+    private verticalFov;
+    /** 画面中央までの距離と視野角から決まる中央の縮尺に等しい zoom（パディングの計算用）。 */
+    private zoomForScale;
     private getVisibleRegion;
     /**
      * カメラの向きを入れ直す。**`lookAt` / `flyToBoundingSphere` だけでは bearing が効かない。**
