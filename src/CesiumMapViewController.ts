@@ -327,7 +327,9 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
       bearing: current.bearing,
     });
     if (!fit) return Promise.resolve(false);
-    const target = current.copy({ position: fit.center, zoom: fit.zoom });
+    // Paddings: none. `current` carries the last move's paddings, and copying
+    // them would shift the fitted center by them (MapLibre clears them on a fit).
+    const target = current.copy({ position: fit.center, zoom: fit.zoom, paddings: MapPaddings.Zeros });
     // snapZoom:false — keep the fractional fit zoom so `padding` is honored.
     return this.applyCamera(target, { animated: false, snapZoom: false });
   }
