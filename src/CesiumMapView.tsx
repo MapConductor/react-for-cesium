@@ -13,7 +13,7 @@ import {
 import {
   useMapViewStyle,
   useCameraRestriction,
-  useMapUISettings,
+  useMapUISettings, usePolylineTilingOptions, useCircleTilingOptions,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
 import {
@@ -30,7 +30,7 @@ import type { CesiumConfig } from './CesiumMapConfig';
 import type { CesiumMapViewController } from './CesiumMapViewController';
 import type { CesiumMapViewProps } from './CesiumMapViewProps';
 
-export function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps) {
+export function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, className, containerStyle, options, onError, children, markerTilingOptions, polylineTilingOptions, circleTilingOptions, minZoom, maxZoom, restrictBounds, cameraRestriction }: CesiumMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [provider] = useState(() => new CesiumProvider());
   const [scope] = useState(() => new MapViewScope());
@@ -55,7 +55,7 @@ export function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded
     let cancelled = false;
     setIsReady(false);
     setIsLoaded(false);
-    const config: CesiumConfig = { container: containerRef.current, initCameraPosition: state.cameraPosition, mapDesignType: state.mapDesignType, options, markerTilingOptions, minZoom, maxZoom, restrictBounds };
+    const config: CesiumConfig = { container: containerRef.current, initCameraPosition: state.cameraPosition, mapDesignType: state.mapDesignType, options, markerTilingOptions, polylineTilingOptions, circleTilingOptions, minZoom, maxZoom, restrictBounds };
     provider.initialize(config).then(raw => {
       if (cancelled) return;
       const ctrl = raw as CesiumMapViewController;
@@ -102,6 +102,8 @@ export function CesiumMapView({ state, mapStyle, onStyleDiagnostics, onMapLoaded
   }, [markerTilingOptions, minZoom, maxZoom, restrictBounds, options, provider, scope, state]);
 
   useMapUISettings(state, controller);
+  usePolylineTilingOptions(controller, polylineTilingOptions);
+  useCircleTilingOptions(controller, circleTilingOptions);
   // マップ生成時 config だけでなく、prop の変化にも追随させる（android-sdk 相当）。
   useCameraRestriction(controller, { cameraRestriction, restrictBounds, minZoom, maxZoom });
   // マーカー描画 capability をこのマップのサービスレジストリへ登録する。

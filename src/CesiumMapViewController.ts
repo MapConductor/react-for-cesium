@@ -1,3 +1,4 @@
+import { AbstractZoomAltitudeConverter, MapPaddings, paddedCameraCenter, PolygonTiler, POLYGON_TILE_LAYER_ID, polygonTileRasterLayerState, POLYLINE_TILE_LAYER_ID, polylineTileRasterLayerState, CIRCLE_TILE_LAYER_ID, circleTileRasterLayerState } from '@mapconductor/js-sdk-core';
 import {
   Cartesian2,
   Cartesian3,
@@ -63,6 +64,12 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   private activeMarkerDrag: MarkerDragState | null = null;
   private suppressNextClick = false;
   private logicalTiltHint: number | null = null;
+  /**
+   * 最後に動かしたときの `MapCameraPosition.paddings`。Cesium のカメラに
+   * パディングは無いので、注視点をずらして再現し、読み戻しではパディングを除いた
+   * 領域の中央の地点を返す。
+   */
+  private cameraPaddings: MapPaddings | null = null;
 
   constructor(
     readonly holder: CesiumMapViewHolder,
@@ -94,9 +101,35 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     this.registerOverlayController(this.rasterLayerController);
     holder.setController(this);
     // Tiled markers render into a raster overlay driven by the raster controller.
-    this.markerController.onRasterLayerUpdate = async state => {
-      if (state) await this.rasterLayerController.composition([state]);
-      else await this.rasterLayerController.clear();
+    // Many polygons are drawn as tiles by the tile service worker and shown
+    // as one raster layer; taps still resolve against the original shapes.
+    this.polygonController.tiler = new PolygonTiler();
+    this.polygonController.tiler.onTemplate = async (template, tileSize) => {
+      if (template) await this.rasterLayerController.upsert(polygonTileRasterLayerState(template, tileSize));
+      else await this.rasterLayerController.removeById(POLYGON_TILE_LAYER_ID);
+    };
+    // Many polylines are drawn as tiles too (the tiler is set by the provider, with the map's
+    // PolylineTilingOptions) and shown as one raster layer, in the polyline band.
+    if (this.polylineController.tiler) {
+      this.polylineController.tiler.onTemplate = async (template, tileSize) => {
+        if (template) await this.rasterLayerController.upsert(polylineTileRasterLayerState(template, tileSize));
+        else await this.rasterLayerController.removeById(POLYLINE_TILE_LAYER_ID);
+      };
+    }
+    // Many circles are drawn as tiles too (the tiler is set by the provider, with the map's
+    // CircleTilingOptions) and shown as one raster layer, at the bottom of the circle band.
+    if (this.circleController.tiler) {
+      this.circleController.tiler.onTemplate = async (template, tileSize) => {
+        if (template) await this.rasterLayerController.upsert(circleTileRasterLayerState(template, tileSize));
+        else await this.rasterLayerController.removeById(CIRCLE_TILE_LAYER_ID);
+      };
+    }
+    // upsert / removeById, not composition / clear: those replace every raster
+    // layer, so marker tiles removed the app's RasterLayers and polygon tiles
+    // (and the app's RasterLayers removed the marker tiles).
+    this.markerController.onRasterLayerUpdate = async (state) => {
+      if (state) await this.rasterLayerController.upsert(state);
+      else await this.rasterLayerController.removeById('mc-marker-tiles');
     };
     this.input = new ScreenSpaceEventHandler(holder.map.scene.canvas);
     this.setupEvents();
@@ -257,6 +290,7 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     { animated, duration, snapZoom = true }: { animated: boolean; duration?: number; snapZoom?: boolean },
   ): Promise<boolean> {
     this.logicalTiltHint = position.tilt;
+    this.cameraPaddings = position.paddings ?? this.cameraPaddings;
     const { target, offset } = this.orbitCamera(position, snapZoom);
     if (!animated) {
       this.holder.map.camera.lookAt(target, offset);
@@ -293,7 +327,9 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
       bearing: current.bearing,
     });
     if (!fit) return Promise.resolve(false);
-    const target = current.copy({ position: fit.center, zoom: fit.zoom });
+    // Paddings: none. `current` carries the last move's paddings, and copying
+    // them would shift the fitted center by them (MapLibre clears them on a fit).
+    const target = current.copy({ position: fit.center, zoom: fit.zoom, paddings: MapPaddings.Zeros });
     // snapZoom:false — keep the fractional fit zoom so `padding` is honored.
     return this.applyCamera(target, { animated: false, snapZoom: false });
   }
@@ -301,19 +337,46 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   getCameraPosition(): MapCameraPosition {
     const camera = this.holder.map.camera;
     const cartographic = camera.positionCartographic;
-    const center = this.holder.fromScreenOffsetSync({ x: this.holder.map.canvas.clientWidth / 2, y: this.holder.map.canvas.clientHeight / 2 });
-    const position = center ?? createGeoPoint({ longitude: CesiumMath.toDegrees(cartographic.longitude), latitude: CesiumMath.toDegrees(cartographic.latitude) });
+    const width = this.holder.map.canvas.clientWidth;
+    const height = this.holder.map.canvas.clientHeight;
+    const center = this.holder.fromScreenOffsetSync({ x: width / 2, y: height / 2 });
+    const lookAt = center ?? createGeoPoint({ longitude: CesiumMath.toDegrees(cartographic.longitude), latitude: CesiumMath.toDegrees(cartographic.latitude) });
+    // パディングを付けて動かした後の position は、パディングを除いた領域の中央に
+    // 見えている地点。zoom は画面中央（注視点）までの距離から求める。
+    const paddings = this.cameraPaddings;
+    const padded = paddings
+      ? this.holder.fromScreenOffsetSync({
+        x: width / 2 + (paddings.left - paddings.right) / 2,
+        y: height / 2 + (paddings.top - paddings.bottom) / 2,
+      })
+      : null;
+    const position = padded ?? lookAt;
     const tilt = CesiumMath.toDegrees(camera.pitch) + 90;
-    const target = Cartesian3.fromDegrees(position.longitude, position.latitude, position.altitude ?? 0);
-    const range = Cartesian3.distance(camera.positionWC, target);
+    const lookAtPoint = Cartesian3.fromDegrees(lookAt.longitude, lookAt.latitude, lookAt.altitude ?? 0);
+    const range = Cartesian3.distance(camera.positionWC, lookAtPoint);
     return toMapCameraPosition({
       target: position,
-      zoom: this.holder.zoomConverter.distanceToZoomLevel({ distance: range, latitude: position.latitude }),
+      zoom: this.holder.zoomConverter.distanceToZoomLevel({ distance: range, latitude: lookAt.latitude }),
       bearing: normalizeDegrees(CesiumMath.toDegrees(camera.heading)),
       tilt,
       logicalTiltHint: this.logicalTiltHint,
       converter: this.holder.zoomConverter,
-    }).copy({ visibleRegion: this.getVisibleRegion() });
+    }).copy({ visibleRegion: this.getVisibleRegion(), paddings: paddings ?? MapPaddings.Zeros, fov: this.verticalFov() });
+  }
+
+  /** カメラの上下視野角（度）。 */
+  private verticalFov(): number | null {
+    const fovy = (this.holder.map.camera.frustum as { fovy?: number }).fovy;
+    return typeof fovy === 'number' && Number.isFinite(fovy) ? CesiumMath.toDegrees(fovy) : null;
+  }
+
+  /** 画面中央までの距離と視野角から決まる中央の縮尺に等しい zoom（パディングの計算用）。 */
+  private zoomForScale(range: number, latitude: number): number {
+    const fov = this.verticalFov() ?? 35;
+    const focal = this.holder.map.canvas.clientHeight / 2 / Math.tan((fov * Math.PI) / 360);
+    const metersPerPixel = range / Math.max(focal, 1);
+    const cosLat = Math.max(Math.cos((latitude * Math.PI) / 180), 0.01);
+    return Math.log2((AbstractZoomAltitudeConverter.WEB_MERCATOR_INITIAL_MPP_256 * cosLat) / metersPerPixel);
   }
 
   private getVisibleRegion(): VisibleRegion | null {
@@ -358,8 +421,19 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
     snapZoom = true,
   ): { target: Cartesian3; offset: HeadingPitchRange } {
     const camera = toCameraPosition(position, this.holder.zoomConverter, { snapZoom });
-    const target = Cartesian3.fromDegrees(camera.target.longitude, camera.target.latitude, camera.target.altitude ?? 0);
     const range = this.holder.zoomConverter.zoomLevelToDistance({ zoomLevel: camera.zoom, latitude: camera.target.latitude });
+    // パディングを除いた領域の中央に target が来るよう、注視点（画面中央）をずらす。
+    const lookAt = this.cameraPaddings
+      ? paddedCameraCenter(camera.target, {
+        zoom: this.zoomForScale(range, camera.target.latitude),
+        tilt: Math.max(0, Math.min(89, camera.tilt)),
+        bearing: position.bearing,
+        paddings: this.cameraPaddings,
+        fov: this.verticalFov(),
+        viewport: { width: this.holder.map.canvas.clientWidth, height: this.holder.map.canvas.clientHeight },
+      })
+      : camera.target;
+    const target = Cartesian3.fromDegrees(lookAt.longitude, lookAt.latitude, camera.target.altitude ?? 0);
     const offset = new HeadingPitchRange(
       CesiumMath.toRadians(camera.bearing),
       CesiumMath.toRadians(Math.max(0, Math.min(89, camera.tilt)) - 90),
@@ -385,7 +459,14 @@ export class CesiumMapViewController extends BaseMapViewController implements Ma
   setMarkerAnimationOverlayHost(host: MarkerAnimationOverlayHost | null): void { this.markerController.setMarkerAnimationOverlayHost(host); }
 
   async clearOverlays(): Promise<void> {
-    await Promise.all([this.markerController.clear(), this.circleController.clear(), this.polylineController.clear(), this.polygonController.clear(), this.groundImageController.clear(), this.rasterLayerController.clear()]);
+    await this.clearOverlayControllers([
+      this.markerController,
+      this.circleController,
+      this.polylineController,
+      this.polygonController,
+      this.groundImageController,
+      this.rasterLayerController,
+    ]);
   }
   destroy(): void {
     if (this.destroyed) return;

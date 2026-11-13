@@ -1,3 +1,4 @@
+import { PolylineTiler, PolylineTilingOptions, CircleTiler, CircleTilingOptions } from '@mapconductor/js-sdk-core';
 import {
   Cartesian3,
   Cartographic,
@@ -92,11 +93,19 @@ export class CesiumProvider extends MapProvider {
       });
     }
     const holder = new CesiumMapViewHolder(container, viewer, zoomConverter);
+    // Many polylines are drawn as tiles by the tile service worker and shown as one raster
+    // layer (the view controller mounts it); taps still resolve against the original paths.
+    const polylineController = new CesiumPolylineController(new CesiumPolylineOverlayRenderer(holder));
+    polylineController.tiler = new PolylineTiler(config.polylineTilingOptions ?? PolylineTilingOptions.Default);
+    // Many circles are drawn as tiles too, shown as one raster layer at the bottom of the circle
+    // band (the view controller mounts it); taps still resolve against the original circles.
+    const circleController = new CesiumCircleController(new CesiumCircleOverlayRenderer(holder));
+    circleController.tiler = new CircleTiler(config.circleTilingOptions ?? CircleTilingOptions.Default);
     const controller = new CesiumMapViewController(
       holder,
       new CesiumMarkerController(new CesiumMarkerRenderer(holder), config.markerTilingOptions),
-      new CesiumCircleController(new CesiumCircleOverlayRenderer(holder)),
-      new CesiumPolylineController(new CesiumPolylineOverlayRenderer(holder)),
+      circleController,
+      polylineController,
       new CesiumPolygonController(new CesiumPolygonOverlayRenderer(holder)),
       new CesiumGroundImageController(new CesiumGroundImageOverlayRenderer(holder)),
       new CesiumRasterLayerController(new CesiumRasterLayerOverlayRenderer(holder)),

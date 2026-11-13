@@ -5,7 +5,7 @@ import { toCesiumColor } from '../color';
 import { pointsToDegrees } from '../helpers';
 import { Cartesian3 } from 'cesium';
 import { cesiumEntityId } from '../entityId';
-import { POLYLINE_Z_BASE } from '../zOrder';
+import { groundZIndex } from '../zOrder';
 
 export class CesiumPolylineOverlayRenderer implements PolylineOverlayRenderer<Entity> {
   constructor(readonly holder: CesiumMapViewHolder) {}
@@ -33,7 +33,7 @@ export class CesiumPolylineOverlayRenderer implements PolylineOverlayRenderer<En
       width: state.strokeWidth,
       material: toCesiumColor(state.strokeColor),
       clampToGround: true,
-      zIndex: POLYLINE_Z_BASE + state.zIndex,
+      zIndex: groundZIndex('polyline', state.zIndex),
     });
   }
 }
